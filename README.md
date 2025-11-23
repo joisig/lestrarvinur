@@ -1,6 +1,6 @@
 # Lestrarvinur (Reading Buddy) - Phoenix LiveView Version
 
-A flashcard reading app to help children learn Icelandic words, reimplemented from the TypeScript/React version as an Elixir Phoenix LiveView application with SQLite backend.
+A flashcard reading app to help children learn Icelandic words. Elixir Phoenix LiveView application with SQLite backend.
 
 ## Features
 
@@ -106,15 +106,6 @@ priv/
 5. **Earn Trophies**: Unlock trophies at various milestones (100, 200, 400, 600, 800, 1000, 1500, 2000 words)
 6. **Encouragements**: Receive encouraging messages every 10 words
 
-### For Admins (joi@joisig.com only)
-
-1. **Login** with username `joi@joisig.com`
-2. **Click "Stjórnborð"** (Admin Dashboard) button
-3. **Upload Audio Files**:
-   - For words: Click the upload icon next to any word, select an audio file
-   - For encouragements: Click the upload icon next to any encouragement message
-4. **Play/Delete**: Use the play button to preview, trash button to delete
-
 ## Game Logic
 
 ### Word Progression
@@ -140,45 +131,6 @@ Trophies unlock automatically at these thresholds:
 - **Ofurhetja** (Superhero): 1000 words
 - **Galdramaður** (Wizard): 1500 words
 - **Goðsögn** (Legend): 2000 words
-
-### Prestige Mode
-
-At 10,000 words:
-- Counter resets to 0
-- Trophies reset (can be earned again)
-- Special "x2" badge appears on trophies
-- Prestige status persists
-
-## Differences from TypeScript Version
-
-### Changes
-
-1. **No AI at Runtime**:
-   - TypeScript version used Gemini AI for text-to-speech and encouragement generation
-   - Phoenix version uses pre-recorded audio files and static encouragement messages
-
-2. **Username Instead of Email**:
-   - Authentication uses arbitrary usernames (case-sensitive, can include spaces)
-   - No email validation required
-
-3. **Reduced Encouragements**:
-   - 30 static messages instead of AI-generated ones
-
-4. **File Upload Instead of Recording**:
-   - Admin uploads audio files instead of recording directly in browser
-   - More flexible - supports multiple audio formats
-
-5. **Server-Side State**:
-   - Progress stored in SQLite database instead of localStorage
-   - More reliable and accessible across devices
-
-### Similarities
-
-- Same word lists (89 words total across 4 categories)
-- Same trophy system and thresholds
-- Same game progression logic
-- Same visual design and styling
-- Same encouragement frequency (every 10 words)
 
 ## Development
 
@@ -256,3 +208,4 @@ This is an educational application for learning Icelandic reading.
 
 - Original TypeScript/React version created with AI Studio
 - Phoenix LiveView reimplementation by Claude Code
+- Guided by Jói Sigurdsson
