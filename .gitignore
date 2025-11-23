@@ -1,0 +1,42 @@
+/_build/
+/cover/
+/deps/
+/doc/
+/.fetch
+erl_crash.dump
+*.ez
+/tmp/
+lestrarvinur-*.tar
+/priv/static/assets/
+/priv/static/cache_manifest.json
+npm-debug.log
+/assets/node_modules/
+*.db
+*.db-*
+
+.DS_Store
+
+/priv/static/**/*.gz
+
+# Cache-busted versions of static files (with hashes)
+/priv/static/*-*.css
+/priv/static/*-*.js
+/priv/static/*-*.json
+/priv/static/*-*.txt
+/priv/static/*-*.ico
+/priv/static/*-*.svg
+
+# Node.js / JavaScript
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Python
+__pycache__
+
+# IDE
+.vscode/
+.idea/
