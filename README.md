@@ -202,6 +202,8 @@ The following constants can be modified in `lib/lestrarvinur_phoenix/constants.e
 
 ## License
 
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
 This is an educational application for learning Icelandic reading.
 
 ## Credits
