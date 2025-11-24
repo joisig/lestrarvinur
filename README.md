@@ -7,14 +7,8 @@ A flashcard reading app to help children learn Icelandic words. Elixir Phoenix L
 - **Username-based Authentication**: Simple login/register system using usernames (no passwords, no email)
 - **Four Word Lists**: Yellow, Blue, Red, and Green lists with Icelandic sight words
 - **Progress Tracking**: Tracks total words read with database persistence
-- **Trophy System**: 8 unlockable trophies at various word thresholds
-- **Prestige Mode**: Reset and replay after reaching 10,000 words
+- **Trophy System**: 8 unlockable trophies at various word thresholds (can earn them multiple times)
 - **Encouragement Messages**: 30 pre-defined Icelandic encouragement phrases (shown every 10 words)
-- **Audio Support**:
-  - Upload custom human-recorded audio for any word
-  - Upload audio for encouragement messages
-  - Supports multiple audio formats (MP3, WebM, WAV, M4A, OGG)
-- **Admin Dashboard**: Accessible only to `joi@joisig.com` for recording/uploading audio files
 
 ## Architecture
 
@@ -24,7 +18,6 @@ A flashcard reading app to help children learn Icelandic words. Elixir Phoenix L
 - **Frontend**: Phoenix LiveView 1.1 (no separate frontend framework)
 - **Database**: SQLite via Ecto
 - **Styling**: TailwindCSS with custom animations
-- **Audio**: HTML5 Audio API for playback
 
 ### Directory Structure
 
@@ -100,9 +93,7 @@ priv/
 1. **Register**: Enter any username (can include spaces, is case-sensitive)
 2. **Dashboard**: View your total words read and unlocked trophies
 3. **Play**: Click "SPILA" to start the flashcard game
-4. **Read Words**:
-   - Tap the speaker icon to hear the word (if audio is available)
-   - Tap anywhere else on the screen to advance to the next word
+4. **Read Words**: Tap anywhere on the screen to advance to the next word
 5. **Earn Trophies**: Unlock trophies at various milestones (100, 200, 400, 600, 800, 1000, 1500, 2000 words)
 6. **Encouragements**: Receive encouraging messages every 10 words
 
@@ -174,7 +165,7 @@ mix assets.deploy
 
 ## File Structure for Audio
 
-Audio files are stored in `priv/static/media/` with predetermined filenames:
+Audio files are stored in `priv/static/media/` with predetermined filenames (note, audio support is not ready yet):
 
 ### Words
 ```
@@ -197,8 +188,6 @@ The following constants can be modified in `lib/lestrarvinur_phoenix/constants.e
 - **Word Lists**: Add/remove/modify Icelandic words by category
 - **Trophies**: Change trophy names, thresholds, or colors
 - **Encouragements**: Modify the 30 encouragement messages
-- **Prestige Threshold**: Default is 10,000 words
-- **Admin Username**: Default is "joi@joisig.com"
 
 ## License
 
