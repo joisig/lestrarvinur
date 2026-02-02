@@ -45,7 +45,8 @@ Hooks.AudioPlayer = {
 // Dragon Fling hook for the minigame
 Hooks.DragonFling = {
   mounted() {
-    this.activePointers = new Map() // Track multiple touch points
+    this.activePointers = new Map()
+    this.animatingWords = new Set() // Track words being animated
     this.setupEventListeners()
   },
 
@@ -53,115 +54,195 @@ Hooks.DragonFling = {
     const container = this.el
 
     // Mouse events
-    container.addEventListener("mousedown", (e) => this.handlePointerDown(e, "mouse"))
-    container.addEventListener("mousemove", (e) => this.handlePointerMove(e, "mouse"))
-    container.addEventListener("mouseup", (e) => this.handlePointerUp(e, "mouse"))
-    container.addEventListener("mouseleave", (e) => this.handlePointerUp(e, "mouse"))
+    container.addEventListener("mousedown", (e) => {
+      const target = e.target.closest(".word-flingable")
+      if (target) {
+        e.preventDefault()
+        this.handlePointerDown(e.clientX, e.clientY, target, "mouse")
+      }
+    })
+    document.addEventListener("mousemove", (e) => this.handlePointerMove(e.clientX, e.clientY, "mouse"))
+    document.addEventListener("mouseup", (e) => this.handlePointerUp("mouse"))
 
     // Touch events
     container.addEventListener("touchstart", (e) => {
       for (const touch of e.changedTouches) {
-        this.handlePointerDown(touch, touch.identifier)
+        const target = touch.target.closest(".word-flingable")
+        if (target) {
+          e.preventDefault()
+          this.handlePointerDown(touch.clientX, touch.clientY, target, touch.identifier)
+        }
       }
     }, { passive: false })
 
-    container.addEventListener("touchmove", (e) => {
-      e.preventDefault() // Prevent scrolling
+    document.addEventListener("touchmove", (e) => {
+      let shouldPrevent = false
       for (const touch of e.changedTouches) {
-        this.handlePointerMove(touch, touch.identifier)
+        if (this.activePointers.has(touch.identifier)) {
+          shouldPrevent = true
+          this.handlePointerMove(touch.clientX, touch.clientY, touch.identifier)
+        }
       }
+      if (shouldPrevent) e.preventDefault()
     }, { passive: false })
 
-    container.addEventListener("touchend", (e) => {
+    document.addEventListener("touchend", (e) => {
       for (const touch of e.changedTouches) {
-        this.handlePointerUp(touch, touch.identifier)
-      }
-    })
-
-    container.addEventListener("touchcancel", (e) => {
-      for (const touch of e.changedTouches) {
-        this.handlePointerUp(touch, touch.identifier)
+        this.handlePointerUp(touch.identifier)
       }
     })
   },
 
-  handlePointerDown(e, pointerId) {
-    const target = e.target.closest(".word-flingable")
-    if (!target) return
+  handlePointerDown(x, y, target, pointerId) {
+    if (this.animatingWords.has(target.dataset.wordId)) return
 
     const rect = target.getBoundingClientRect()
-    const startX = e.clientX || e.pageX
-    const startY = e.clientY || e.pageY
 
     this.activePointers.set(pointerId, {
       element: target,
       wordId: target.dataset.wordId,
-      startX,
-      startY,
-      currentX: startX,
-      currentY: startY,
-      offsetX: startX - rect.left - rect.width / 2,
-      offsetY: startY - rect.top - rect.height / 2,
-      isDragging: true
+      startRect: rect,
+      startX: x,
+      startY: y,
+      currentX: x,
+      currentY: y,
+      prevX: x,
+      prevY: y,
+      prevTime: performance.now(),
+      vx: 0,
+      vy: 0
     })
 
     target.style.zIndex = "100"
     target.style.transition = "none"
+    target.style.cursor = "grabbing"
   },
 
-  handlePointerMove(e, pointerId) {
-    const pointer = this.activePointers.get(pointerId)
-    if (!pointer || !pointer.isDragging) return
+  handlePointerMove(x, y, pointerId) {
+    const p = this.activePointers.get(pointerId)
+    if (!p) return
 
-    const currentX = e.clientX || e.pageX
-    const currentY = e.clientY || e.pageY
+    const now = performance.now()
+    const dt = now - p.prevTime
 
-    pointer.currentX = currentX
-    pointer.currentY = currentY
-
-    const deltaX = currentX - pointer.startX
-    const deltaY = currentY - pointer.startY
-
-    pointer.element.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.1)`
-  },
-
-  handlePointerUp(e, pointerId) {
-    const pointer = this.activePointers.get(pointerId)
-    if (!pointer || !pointer.isDragging) return
-
-    const deltaY = pointer.currentY - pointer.startY
-    const element = pointer.element
-    const wordId = pointer.wordId
-
-    // Check if flung upward (threshold -50px)
-    if (deltaY < -50) {
-      // Animate word flying to dragon
-      const dragon = document.getElementById("dragon-target")
-      if (dragon) {
-        const dragonRect = dragon.getBoundingClientRect()
-        const elemRect = element.getBoundingClientRect()
-
-        const flyToX = dragonRect.left + dragonRect.width / 2 - elemRect.left - elemRect.width / 2
-        const flyToY = dragonRect.top + dragonRect.height / 2 - elemRect.top - elemRect.height / 2
-
-        element.style.transition = "transform 0.3s ease-out, opacity 0.3s ease-out"
-        element.style.transform = `translate(${flyToX}px, ${flyToY}px) scale(0.5)`
-        element.style.opacity = "0"
-
-        // Notify server after animation
-        setTimeout(() => {
-          this.pushEvent("word_flung", { word_id: wordId })
-        }, 250)
-      }
-    } else {
-      // Snap back to original position
-      element.style.transition = "transform 0.2s ease-out"
-      element.style.transform = "translate(0, 0) scale(1)"
-      element.style.zIndex = ""
+    if (dt > 0) {
+      // Smooth velocity with some averaging
+      const newVx = (x - p.prevX) / dt * 1000
+      const newVy = (y - p.prevY) / dt * 1000
+      p.vx = p.vx * 0.5 + newVx * 0.5
+      p.vy = p.vy * 0.5 + newVy * 0.5
     }
 
-    pointer.isDragging = false
+    p.prevX = p.currentX
+    p.prevY = p.currentY
+    p.prevTime = now
+    p.currentX = x
+    p.currentY = y
+
+    const dx = x - p.startX
+    const dy = y - p.startY
+    p.element.style.transform = `translate(${dx}px, ${dy}px) scale(1.05)`
+  },
+
+  handlePointerUp(pointerId) {
+    const p = this.activePointers.get(pointerId)
+    if (!p) return
     this.activePointers.delete(pointerId)
+
+    const el = p.element
+    const wordId = p.wordId
+    const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy)
+
+    // Need upward velocity and minimum speed
+    if (p.vy < -200 && speed > 300) {
+      const dragon = document.getElementById("dragon-target")
+      if (!dragon) return this.snapBack(el)
+
+      const dragonRect = dragon.getBoundingClientRect()
+      const elRect = el.getBoundingClientRect()
+
+      // Normalize velocity to get direction
+      const dirX = p.vx / speed
+      const dirY = p.vy / speed
+
+      // Calculate flight distance based on speed
+      const flightTime = 0.4 // seconds
+      const distance = Math.min(speed * flightTime, 800)
+
+      // Where will it land?
+      const startCenterX = elRect.left + elRect.width / 2
+      const startCenterY = elRect.top + elRect.height / 2
+      const endX = startCenterX + dirX * distance
+      const endY = startCenterY + dirY * distance
+
+      // Check if it hits dragon
+      const hitsDragon = endX > dragonRect.left + 20 &&
+                         endX < dragonRect.right - 20 &&
+                         endY > dragonRect.top + 20 &&
+                         endY < dragonRect.bottom - 20
+
+      if (hitsDragon) {
+        this.animatingWords.add(wordId)
+
+        // Calculate hit position as percentage
+        const hitX = ((endX - dragonRect.left) / dragonRect.width) * 100
+        const hitY = ((endY - dragonRect.top) / dragonRect.height) * 100
+
+        // Clone element for animation (so it's outside LiveView's control)
+        const clone = el.cloneNode(true)
+        clone.removeAttribute("id")
+        clone.removeAttribute("phx-hook")
+        clone.classList.remove("word-slide-in") // Remove entrance animation
+        clone.style.position = "fixed"
+        clone.style.left = elRect.left + "px"
+        clone.style.top = elRect.top + "px"
+        clone.style.width = elRect.width + "px"
+        clone.style.height = elRect.height + "px"
+        clone.style.margin = "0"
+        clone.style.zIndex = "9999"
+        clone.style.pointerEvents = "none"
+        clone.style.background = "white"
+        // Append to the dragon game container so it's in the same stacking context
+        this.el.appendChild(clone)
+
+        // Hide original immediately
+        el.style.visibility = "hidden"
+
+        // Animate the clone flying to target
+        const flyDx = endX - elRect.left - elRect.width / 2
+        const flyDy = endY - elRect.top - elRect.height / 2
+        const rotation = dirX * 360 // Spin based on direction
+
+        // Trigger animation on next frame
+        requestAnimationFrame(() => {
+          clone.style.transition = `transform ${flightTime}s ease-out, opacity ${flightTime}s ease-in`
+          clone.style.transform = `translate(${flyDx}px, ${flyDy}px) scale(0.2) rotate(${rotation}deg)`
+          clone.style.opacity = "0"
+        })
+
+        // Wait for animation to complete, then notify server
+        setTimeout(() => {
+          clone.remove()
+          this.animatingWords.delete(wordId)
+          this.pushEvent("word_flung", {
+            word_id: wordId,
+            hit_x: Math.round(Math.max(10, Math.min(90, hitX))),
+            hit_y: Math.round(Math.max(10, Math.min(90, hitY)))
+          })
+        }, flightTime * 1000 + 50)
+      } else {
+        this.snapBack(el)
+      }
+    } else {
+      this.snapBack(el)
+    }
+  },
+
+  snapBack(el) {
+    el.style.transition = "transform 0.25s ease-out"
+    el.style.transform = "translate(0, 0) scale(1)"
+    el.style.zIndex = ""
+    el.style.cursor = "grab"
   }
 }
 

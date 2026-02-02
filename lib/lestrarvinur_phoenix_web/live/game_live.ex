@@ -60,6 +60,8 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
          |> assign(:dragon_hit_active, false)
          |> assign(:dragon_hit_text, "POW!")
          |> assign(:dragon_hit_pos, {50, 50})
+         |> assign(:dragon_health, 100)
+         |> assign(:dragon_exploding, false)
          |> assign(:pending_trophy, nil)}
     end
   end
@@ -90,14 +92,22 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
     end
   end
 
-  def handle_event("word_flung", %{"word_id" => word_id}, socket) do
+  def handle_event("word_flung", params, socket) do
+    word_id = params["word_id"]
+    # Use hit position from JS if provided, otherwise random
+    hit_x = params["hit_x"] || Enum.random(20..80)
+    hit_y = params["hit_y"] || Enum.random(20..80)
+
     # Remove the flung word from visible words
     visible = Enum.reject(socket.assigns.dragon_visible_words, fn w -> w.id == word_id end)
     flung_count = socket.assigns.dragon_words_flung + 1
+    total = socket.assigns.dragon_total_words
 
-    # Random hit effect text and position
+    # Calculate health (drops from 100 to 0)
+    health = max(0, 100 - round(flung_count / total * 100))
+
+    # Random hit effect text
     hit_text = Enum.random(dragon_hit_sounds())
-    hit_pos = {Enum.random(15..85), Enum.random(15..85)}
 
     socket =
       socket
@@ -105,7 +115,8 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
       |> assign(:dragon_words_flung, flung_count)
       |> assign(:dragon_hit_active, true)
       |> assign(:dragon_hit_text, hit_text)
-      |> assign(:dragon_hit_pos, hit_pos)
+      |> assign(:dragon_hit_pos, {hit_x, hit_y})
+      |> assign(:dragon_health, health)
 
     # Schedule hit animation to clear and next word to appear
     Process.send_after(self(), {:clear_hit, word_id}, 900)
@@ -157,22 +168,10 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
       length(visible) >= 6 or queue == [] ->
         # Check if game is complete
         if queue == [] and visible == [] do
-          # Dragon game complete, exit and show trophy if pending
-          socket =
-            socket
-            |> assign(:dragon_mode, false)
-            |> assign(:dragon_words_flung, 0)
-            |> assign(:dragon_total_words, 0)
-
-          socket =
-            if socket.assigns.pending_trophy do
-              socket
-              |> assign(:just_unlocked, socket.assigns.pending_trophy)
-              |> assign(:pending_trophy, nil)
-            else
-              socket
-            end
-
+          # Trigger explosion!
+          socket = assign(socket, :dragon_exploding, true)
+          # Schedule end of explosion and game exit
+          Process.send_after(self(), :dragon_explosion_done, 2000)
           {:noreply, socket}
         else
           {:noreply, socket}
@@ -187,6 +186,28 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
          |> assign(:dragon_words_queue, rest)
          |> assign(:dragon_visible_words, new_visible)}
     end
+  end
+
+  def handle_info(:dragon_explosion_done, socket) do
+    # Dragon game complete, exit and show trophy if pending
+    socket =
+      socket
+      |> assign(:dragon_mode, false)
+      |> assign(:dragon_words_flung, 0)
+      |> assign(:dragon_total_words, 0)
+      |> assign(:dragon_health, 100)
+      |> assign(:dragon_exploding, false)
+
+    socket =
+      if socket.assigns.pending_trophy do
+        socket
+        |> assign(:just_unlocked, socket.assigns.pending_trophy)
+        |> assign(:pending_trophy, nil)
+      else
+        socket
+      end
+
+    {:noreply, socket}
   end
 
   # Not intended for use outside this module
@@ -234,10 +255,12 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
     # If dragon milestone, start dragon game (trophy will be shown after)
     socket =
       if dragon_milestone do
-        # Prepare words for dragon game with unique IDs
+        # Select the 30 longest words from recent words, then shuffle
         dragon_words =
           recent_words
-          |> Enum.reverse()
+          |> Enum.sort_by(fn w -> -String.length(w.word) end)
+          |> Enum.take(30)
+          |> Enum.shuffle()
           |> Enum.with_index()
           |> Enum.map(fn {word, idx} -> Map.put(word, :id, "dw-#{idx}") end)
 
@@ -465,6 +488,8 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
           hit_active={@dragon_hit_active}
           hit_text={@dragon_hit_text}
           hit_pos={@dragon_hit_pos}
+          health={@dragon_health}
+          exploding={@dragon_exploding}
         />
       <% end %>
     </div>
@@ -477,6 +502,7 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
 
     assigns = assign(assigns, :hit_x, hit_x)
     assigns = assign(assigns, :hit_y, hit_y)
+    assigns = assign(assigns, :health_color, health_bar_color(assigns.health))
 
     ~H"""
     <div
@@ -500,21 +526,39 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
       </div>
       
     <!-- Dragon area (60% height at top) -->
-      <div class="h-[60%] flex items-start justify-center pt-16 relative" id="dragon-target">
-        <!-- Dragon image with bob animation -->
-        <div class="dragon-container relative w-full h-full flex items-center justify-center">
+      <div class="h-[60%] flex flex-col items-center justify-start pt-14 relative" id="dragon-target">
+        <!-- Health bar -->
+        <div class="w-48 md:w-64 mb-2">
+          <div class="h-4 bg-gray-800 rounded-full overflow-hidden border-2 border-white/30 shadow-lg">
+            <div
+              class={"h-full transition-all duration-300 #{@health_color}"}
+              style={"width: #{@health}%;"}
+            >
+            </div>
+          </div>
+        </div>
+        
+    <!-- Dragon image with bob animation -->
+        <div class="dragon-container relative flex-1 w-full flex items-center justify-center">
           <img
             src="/images/dragon.jpg"
             alt="Dragon"
-            class="max-h-full max-w-[80%] object-contain dragon-bob rounded-2xl shadow-2xl"
+            class={"max-h-full max-w-[80%] object-contain rounded-2xl shadow-2xl #{if @exploding, do: "dragon-defeated", else: "dragon-bob"}"}
           />
           <!-- Hit effect at random position -->
-          <%= if @hit_active do %>
+          <%= if @hit_active and not @exploding do %>
             <div
               class="absolute pow-burst pointer-events-none z-10"
               style={"left: #{@hit_x}%; top: #{@hit_y}%; transform: translate(-50%, -50%);"}
             >
               <.comic_burst text={@hit_text} />
+            </div>
+          <% end %>
+          
+    <!-- Final explosion -->
+          <%= if @exploding do %>
+            <div class="absolute inset-0 flex items-center justify-center explosion-container">
+              <.mega_explosion />
             </div>
           <% end %>
         </div>
@@ -535,8 +579,65 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
       
     <!-- Instructions -->
       <div class="absolute bottom-2 left-0 right-0 text-center text-white/60 text-sm">
-        Dragðu orðin upp að drekanum!
+        <%= if @exploding do %>
+          Vel gert!
+        <% else %>
+          Dragðu orðin upp að drekanum!
+        <% end %>
       </div>
+    </div>
+    """
+  end
+
+  # Health bar color based on health percentage
+  defp health_bar_color(health) when health > 60, do: "bg-green-500"
+  defp health_bar_color(health) when health > 30, do: "bg-yellow-500"
+  defp health_bar_color(_health), do: "bg-red-500"
+
+  # Mega explosion effect for defeating the dragon
+  defp mega_explosion(assigns) do
+    ~H"""
+    <div class="mega-explosion">
+      <svg viewBox="0 0 400 400" class="w-80 h-80 md:w-96 md:h-96">
+        <!-- Outer burst -->
+        <polygon
+          points="200,20 220,100 300,60 250,130 380,150 250,180 300,250 220,220 200,300 180,220 100,250 150,180 20,150 150,130 100,60 180,100"
+          fill="#FFD700"
+          stroke="#FF6600"
+          stroke-width="4"
+          class="explosion-outer"
+        />
+        <!-- Middle burst -->
+        <polygon
+          points="200,50 215,110 270,80 240,140 340,160 240,185 270,230 215,205 200,270 185,205 130,230 160,185 60,160 160,140 130,80 185,110"
+          fill="#FFEC00"
+          stroke="#FF8C00"
+          stroke-width="3"
+          class="explosion-middle"
+        />
+        <!-- Inner burst -->
+        <polygon
+          points="200,80 212,120 250,100 230,145 300,160 230,175 250,210 212,195 200,240 188,195 150,210 170,175 100,160 170,145 150,100 188,120"
+          fill="#FFFFFF"
+          stroke="#FFD700"
+          stroke-width="2"
+          class="explosion-inner"
+        />
+        <!-- KA-POW text -->
+        <text
+          x="200"
+          y="170"
+          font-family="Impact, Arial Black, sans-serif"
+          font-size="48"
+          font-weight="bold"
+          fill="#CC0000"
+          text-anchor="middle"
+          stroke="#000"
+          stroke-width="2"
+        >
+          KA-POW!
+        </text>
+      </svg>
     </div>
     """
   end

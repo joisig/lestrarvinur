@@ -206,3 +206,81 @@ body > div[data-phx-main] {
 .word-flingable:active {
   cursor: grabbing;
 }
+
+/* Dragon defeated animation */
+@keyframes dragon-defeated {
+  0% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1);
+  }
+  20% {
+    transform: scale(1.1) rotate(-5deg);
+    filter: brightness(1.5);
+  }
+  40% {
+    transform: scale(0.9) rotate(5deg);
+    filter: brightness(2);
+  }
+  60% {
+    transform: scale(1.05) rotate(-3deg);
+    filter: brightness(1.5) saturate(0.5);
+  }
+  100% {
+    transform: scale(0.8) rotate(0deg);
+    filter: brightness(0.5) saturate(0);
+    opacity: 0.5;
+  }
+}
+
+.dragon-defeated {
+  animation: dragon-defeated 1.5s ease-out forwards;
+}
+
+/* Mega explosion animation */
+@keyframes mega-explosion {
+  0% {
+    transform: scale(0) rotate(-30deg);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1.3) rotate(10deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1) rotate(-5deg);
+  }
+  70% {
+    transform: scale(1.1) rotate(5deg);
+  }
+  100% {
+    transform: scale(1.2) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+.mega-explosion {
+  animation: mega-explosion 0.8s ease-out forwards;
+}
+
+@keyframes explosion-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.9;
+  }
+}
+
+.explosion-outer {
+  animation: explosion-pulse 0.3s ease-in-out infinite;
+}
+
+.explosion-middle {
+  animation: explosion-pulse 0.25s ease-in-out infinite 0.05s;
+}
+
+.explosion-inner {
+  animation: explosion-pulse 0.2s ease-in-out infinite 0.1s;
+}
