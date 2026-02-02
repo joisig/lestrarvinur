@@ -7,8 +7,8 @@ defmodule LestrarvinurPhoenixWeb.DragonTestLive do
   alias LestrarvinurPhoenix.Constants
 
   def mount(_params, _session, socket) do
-    # Generate test words for the dragon game (30 longest words)
-    test_words = generate_test_words(30)
+    # Generate test words for the dragon game (35 longest words)
+    test_words = generate_test_words(35)
 
     # Start with first 6 words visible
     {initial_visible, remaining} = Enum.split(test_words, 6)
@@ -23,38 +23,53 @@ defmodule LestrarvinurPhoenixWeb.DragonTestLive do
      |> assign(:dragon_hit_active, false)
      |> assign(:dragon_hit_text, "POW!")
      |> assign(:dragon_hit_pos, {50, 50})
-     |> assign(:dragon_health, 100)
+     |> assign(:dragon_health, 20)
+     |> assign(:dragon_max_health, 20)
      |> assign(:dragon_exploding, false)}
   end
 
   def handle_event("word_flung", params, socket) do
     word_id = params["word_id"]
-    # Use hit position from JS if provided, otherwise random
+    is_hit = params["is_hit"] == true
     hit_x = params["hit_x"] || Enum.random(20..80)
     hit_y = params["hit_y"] || Enum.random(20..80)
 
     # Remove the flung word from visible words
     visible = Enum.reject(socket.assigns.dragon_visible_words, fn w -> w.id == word_id end)
     flung_count = socket.assigns.dragon_words_flung + 1
-    total = socket.assigns.dragon_total_words
 
-    # Calculate health (drops from 100 to 0)
-    health = max(0, 100 - round(flung_count / total * 100))
+    # Only decrease health on actual hits
+    health =
+      if is_hit do
+        max(0, socket.assigns.dragon_health - 1)
+      else
+        socket.assigns.dragon_health
+      end
 
-    # Random hit effect text
-    hit_text = Enum.random(dragon_hit_sounds())
-
+    # Only show POW effect on actual hits
     socket =
       socket
       |> assign(:dragon_visible_words, visible)
       |> assign(:dragon_words_flung, flung_count)
-      |> assign(:dragon_hit_active, true)
-      |> assign(:dragon_hit_text, hit_text)
-      |> assign(:dragon_hit_pos, {hit_x, hit_y})
       |> assign(:dragon_health, health)
 
-    # Schedule hit animation to clear and next word to appear
-    Process.send_after(self(), {:clear_hit, word_id}, 900)
+    socket =
+      if is_hit do
+        hit_text = Enum.random(dragon_hit_sounds())
+
+        socket
+        |> assign(:dragon_hit_active, true)
+        |> assign(:dragon_hit_text, hit_text)
+        |> assign(:dragon_hit_pos, {hit_x, hit_y})
+      else
+        socket
+      end
+
+    # Schedule hit animation to clear (if hit) and next word to appear
+    if is_hit do
+      Process.send_after(self(), {:clear_hit, word_id}, 900)
+    end
+
     Process.send_after(self(), :next_dragon_word, 100)
 
     {:noreply, socket}
@@ -71,20 +86,21 @@ defmodule LestrarvinurPhoenixWeb.DragonTestLive do
   def handle_info(:next_dragon_word, socket) do
     queue = socket.assigns.dragon_words_queue
     visible = socket.assigns.dragon_visible_words
+    health = socket.assigns.dragon_health
 
     cond do
-      length(visible) >= 6 or queue == [] ->
-        if queue == [] and visible == [] do
-          # Trigger explosion!
-          socket = assign(socket, :dragon_exploding, true)
-          # Schedule end of explosion
-          Process.send_after(self(), :dragon_explosion_done, 2000)
-          {:noreply, socket}
-        else
-          {:noreply, socket}
-        end
+      # Dragon defeated - trigger explosion!
+      health == 0 and not socket.assigns.dragon_exploding ->
+        socket = assign(socket, :dragon_exploding, true)
+        Process.send_after(self(), :dragon_explosion_done, 2000)
+        {:noreply, socket}
 
-      true ->
+      # Game over (out of words) - just redirect, no explosion
+      queue == [] and visible == [] ->
+        {:noreply, redirect(socket, to: ~p"/")}
+
+      # Can add more words
+      length(visible) < 6 and queue != [] ->
         [next_word | rest] = queue
         new_visible = visible ++ [next_word]
 
@@ -92,6 +108,9 @@ defmodule LestrarvinurPhoenixWeb.DragonTestLive do
          socket
          |> assign(:dragon_words_queue, rest)
          |> assign(:dragon_visible_words, new_visible)}
+
+      true ->
+        {:noreply, socket}
     end
   end
 
@@ -131,7 +150,8 @@ defmodule LestrarvinurPhoenixWeb.DragonTestLive do
       assigns
       |> assign(:hit_x, hit_x)
       |> assign(:hit_y, hit_y)
-      |> assign(:health_color, health_bar_color(assigns.dragon_health))
+      |> assign(:health_percent, round(assigns.dragon_health / assigns.dragon_max_health * 100))
+      |> assign(:health_color, health_bar_color(assigns.dragon_health, assigns.dragon_max_health))
 
     ~H"""
     <div
@@ -161,7 +181,7 @@ defmodule LestrarvinurPhoenixWeb.DragonTestLive do
           <div class="h-4 bg-gray-800 rounded-full overflow-hidden border-2 border-white/30 shadow-lg">
             <div
               class={"h-full transition-all duration-300 #{@health_color}"}
-              style={"width: #{@dragon_health}%;"}
+              style={"width: #{@health_percent}%;"}
             >
             </div>
           </div>
@@ -219,9 +239,15 @@ defmodule LestrarvinurPhoenixWeb.DragonTestLive do
   end
 
   # Health bar color based on health percentage
-  defp health_bar_color(health) when health > 60, do: "bg-green-500"
-  defp health_bar_color(health) when health > 30, do: "bg-yellow-500"
-  defp health_bar_color(_health), do: "bg-red-500"
+  defp health_bar_color(health, max_health) do
+    percent = health / max_health * 100
+
+    cond do
+      percent > 60 -> "bg-green-500"
+      percent > 30 -> "bg-yellow-500"
+      true -> "bg-red-500"
+    end
+  end
 
   # Mega explosion effect for defeating the dragon
   defp mega_explosion(assigns) do

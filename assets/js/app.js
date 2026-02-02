@@ -47,7 +47,65 @@ Hooks.DragonFling = {
   mounted() {
     this.activePointers = new Map()
     this.animatingWords = new Set() // Track words being animated
+    this.hitCanvas = null
+    this.hitCtx = null
+    this.setupHitDetection()
     this.setupEventListeners()
+  },
+
+  // Create a canvas with the dragon image for pixel-based hit detection
+  setupHitDetection() {
+    const dragonImg = this.el.querySelector(".dragon-container img")
+    if (!dragonImg) return
+
+    // Wait for image to load if needed
+    if (dragonImg.complete) {
+      this.createHitCanvas(dragonImg)
+    } else {
+      dragonImg.onload = () => this.createHitCanvas(dragonImg)
+    }
+  },
+
+  createHitCanvas(img) {
+    this.hitCanvas = document.createElement("canvas")
+    this.hitCanvas.width = img.naturalWidth
+    this.hitCanvas.height = img.naturalHeight
+    this.hitCtx = this.hitCanvas.getContext("2d", { willReadFrequently: true })
+    this.hitCtx.drawImage(img, 0, 0)
+
+    // Sample corner pixel to detect background color
+    try {
+      const cornerPixel = this.hitCtx.getImageData(5, 5, 1, 1).data
+      this.bgColor = { r: cornerPixel[0], g: cornerPixel[1], b: cornerPixel[2] }
+      console.log("Dragon background color:", this.bgColor)
+    } catch (e) {
+      this.bgColor = { r: 255, g: 255, b: 255 } // Fallback to white
+    }
+  },
+
+  // Check if a point (in image percentage coordinates) hits a non-background pixel
+  isNonBackgroundHit(hitXPercent, hitYPercent) {
+    if (!this.hitCtx) return true // Fallback to always hit if canvas not ready
+
+    const x = Math.floor((hitXPercent / 100) * this.hitCanvas.width)
+    const y = Math.floor((hitYPercent / 100) * this.hitCanvas.height)
+
+    try {
+      const pixel = this.hitCtx.getImageData(x, y, 1, 1).data
+      const r = pixel[0], g = pixel[1], b = pixel[2]
+
+      // Check if pixel is close to background color (within threshold)
+      const threshold = 30
+      const isBackground =
+        Math.abs(r - this.bgColor.r) < threshold &&
+        Math.abs(g - this.bgColor.g) < threshold &&
+        Math.abs(b - this.bgColor.b) < threshold
+
+      return !isBackground
+    } catch (e) {
+      console.log("Hit detection error:", e)
+      return true // Fallback to hit on error
+    }
   },
 
   setupEventListeners() {
@@ -155,10 +213,15 @@ Hooks.DragonFling = {
 
     // Need upward velocity and minimum speed
     if (p.vy < -200 && speed > 300) {
-      const dragon = document.getElementById("dragon-target")
-      if (!dragon) return this.snapBack(el)
+      const dragonContainer = this.el.querySelector(".dragon-container")
+      const dragonImg = this.el.querySelector(".dragon-container img")
+      if (!dragonContainer || !dragonImg) {
+        console.log("No dragon container or img found")
+        return this.snapBack(el)
+      }
 
-      const dragonRect = dragon.getBoundingClientRect()
+      const containerRect = dragonContainer.getBoundingClientRect()
+      const imgRect = dragonImg.getBoundingClientRect()
       const elRect = el.getBoundingClientRect()
 
       // Normalize velocity to get direction
@@ -169,24 +232,36 @@ Hooks.DragonFling = {
       const flightTime = 0.4 // seconds
       const distance = Math.min(speed * flightTime, 800)
 
-      // Where will it land?
-      const startCenterX = elRect.left + elRect.width / 2
-      const startCenterY = elRect.top + elRect.height / 2
-      const endX = startCenterX + dirX * distance
-      const endY = startCenterY + dirY * distance
+      // Start from element's current visual center
+      const startX = elRect.left + elRect.width / 2
+      const startY = elRect.top + elRect.height / 2
 
-      // Check if it hits dragon
-      const hitsDragon = endX > dragonRect.left + 20 &&
-                         endX < dragonRect.right - 20 &&
-                         endY > dragonRect.top + 20 &&
-                         endY < dragonRect.bottom - 20
+      // Where will it land?
+      const endX = startX + dirX * distance
+      const endY = startY + dirY * distance
+
+      console.log("Fling:", { startX, startY, endX, endY, dirX, dirY, distance, imgRect: { left: imgRect.left, right: imgRect.right, top: imgRect.top, bottom: imgRect.bottom } })
+
+      // Check if it hits dragon image (lenient - just needs to be in upper half of screen going toward dragon)
+      const hitsDragon = endY < imgRect.bottom + 50
 
       if (hitsDragon) {
+        // Clamp end position to dragon image bounds for the POW
+        const clampedEndX = Math.max(imgRect.left + 20, Math.min(imgRect.right - 20, endX))
+        const clampedEndY = Math.max(imgRect.top + 20, Math.min(imgRect.bottom - 20, endY))
         this.animatingWords.add(wordId)
 
-        // Calculate hit position as percentage
-        const hitX = ((endX - dragonRect.left) / dragonRect.width) * 100
-        const hitY = ((endY - dragonRect.top) / dragonRect.height) * 100
+        // Calculate hit position as percentage of the IMAGE (for pixel detection)
+        const imgHitXPercent = ((clampedEndX - imgRect.left) / imgRect.width) * 100
+        const imgHitYPercent = ((clampedEndY - imgRect.top) / imgRect.height) * 100
+
+        // Check if we hit a non-background part of the dragon
+        const isActualHit = this.isNonBackgroundHit(imgHitXPercent, imgHitYPercent)
+        console.log("Hit check:", { imgHitXPercent, imgHitYPercent, isActualHit })
+
+        // Calculate hit position as percentage of the CONTAINER (for POW display)
+        const hitX = ((clampedEndX - containerRect.left) / containerRect.width) * 100
+        const hitY = ((clampedEndY - containerRect.top) / containerRect.height) * 100
 
         // Clone element for animation (so it's outside LiveView's control)
         const clone = el.cloneNode(true)
@@ -194,23 +269,24 @@ Hooks.DragonFling = {
         clone.removeAttribute("phx-hook")
         clone.classList.remove("word-slide-in") // Remove entrance animation
         clone.style.position = "fixed"
+        // Position clone at element's current visual position
         clone.style.left = elRect.left + "px"
         clone.style.top = elRect.top + "px"
         clone.style.width = elRect.width + "px"
         clone.style.height = elRect.height + "px"
         clone.style.margin = "0"
+        clone.style.transform = "none" // Reset any transform from dragging
         clone.style.zIndex = "9999"
         clone.style.pointerEvents = "none"
-        clone.style.background = "white"
         // Append to the dragon game container so it's in the same stacking context
         this.el.appendChild(clone)
 
         // Hide original immediately
         el.style.visibility = "hidden"
 
-        // Animate the clone flying to target
-        const flyDx = endX - elRect.left - elRect.width / 2
-        const flyDy = endY - elRect.top - elRect.height / 2
+        // Animate the clone flying to target (from element center to clamped end position)
+        const flyDx = clampedEndX - startX
+        const flyDy = clampedEndY - startY
         const rotation = dirX * 360 // Spin based on direction
 
         // Trigger animation on next frame
@@ -226,6 +302,7 @@ Hooks.DragonFling = {
           this.animatingWords.delete(wordId)
           this.pushEvent("word_flung", {
             word_id: wordId,
+            is_hit: isActualHit,
             hit_x: Math.round(Math.max(10, Math.min(90, hitX))),
             hit_y: Math.round(Math.max(10, Math.min(90, hitY)))
           })
