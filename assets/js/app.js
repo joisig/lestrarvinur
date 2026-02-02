@@ -42,6 +42,129 @@ Hooks.AudioPlayer = {
   }
 }
 
+// Dragon Fling hook for the minigame
+Hooks.DragonFling = {
+  mounted() {
+    this.activePointers = new Map() // Track multiple touch points
+    this.setupEventListeners()
+  },
+
+  setupEventListeners() {
+    const container = this.el
+
+    // Mouse events
+    container.addEventListener("mousedown", (e) => this.handlePointerDown(e, "mouse"))
+    container.addEventListener("mousemove", (e) => this.handlePointerMove(e, "mouse"))
+    container.addEventListener("mouseup", (e) => this.handlePointerUp(e, "mouse"))
+    container.addEventListener("mouseleave", (e) => this.handlePointerUp(e, "mouse"))
+
+    // Touch events
+    container.addEventListener("touchstart", (e) => {
+      for (const touch of e.changedTouches) {
+        this.handlePointerDown(touch, touch.identifier)
+      }
+    }, { passive: false })
+
+    container.addEventListener("touchmove", (e) => {
+      e.preventDefault() // Prevent scrolling
+      for (const touch of e.changedTouches) {
+        this.handlePointerMove(touch, touch.identifier)
+      }
+    }, { passive: false })
+
+    container.addEventListener("touchend", (e) => {
+      for (const touch of e.changedTouches) {
+        this.handlePointerUp(touch, touch.identifier)
+      }
+    })
+
+    container.addEventListener("touchcancel", (e) => {
+      for (const touch of e.changedTouches) {
+        this.handlePointerUp(touch, touch.identifier)
+      }
+    })
+  },
+
+  handlePointerDown(e, pointerId) {
+    const target = e.target.closest(".word-flingable")
+    if (!target) return
+
+    const rect = target.getBoundingClientRect()
+    const startX = e.clientX || e.pageX
+    const startY = e.clientY || e.pageY
+
+    this.activePointers.set(pointerId, {
+      element: target,
+      wordId: target.dataset.wordId,
+      startX,
+      startY,
+      currentX: startX,
+      currentY: startY,
+      offsetX: startX - rect.left - rect.width / 2,
+      offsetY: startY - rect.top - rect.height / 2,
+      isDragging: true
+    })
+
+    target.style.zIndex = "100"
+    target.style.transition = "none"
+  },
+
+  handlePointerMove(e, pointerId) {
+    const pointer = this.activePointers.get(pointerId)
+    if (!pointer || !pointer.isDragging) return
+
+    const currentX = e.clientX || e.pageX
+    const currentY = e.clientY || e.pageY
+
+    pointer.currentX = currentX
+    pointer.currentY = currentY
+
+    const deltaX = currentX - pointer.startX
+    const deltaY = currentY - pointer.startY
+
+    pointer.element.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.1)`
+  },
+
+  handlePointerUp(e, pointerId) {
+    const pointer = this.activePointers.get(pointerId)
+    if (!pointer || !pointer.isDragging) return
+
+    const deltaY = pointer.currentY - pointer.startY
+    const element = pointer.element
+    const wordId = pointer.wordId
+
+    // Check if flung upward (threshold -50px)
+    if (deltaY < -50) {
+      // Animate word flying to dragon
+      const dragon = document.getElementById("dragon-target")
+      if (dragon) {
+        const dragonRect = dragon.getBoundingClientRect()
+        const elemRect = element.getBoundingClientRect()
+
+        const flyToX = dragonRect.left + dragonRect.width / 2 - elemRect.left - elemRect.width / 2
+        const flyToY = dragonRect.top + dragonRect.height / 2 - elemRect.top - elemRect.height / 2
+
+        element.style.transition = "transform 0.3s ease-out, opacity 0.3s ease-out"
+        element.style.transform = `translate(${flyToX}px, ${flyToY}px) scale(0.5)`
+        element.style.opacity = "0"
+
+        // Notify server after animation
+        setTimeout(() => {
+          this.pushEvent("word_flung", { word_id: wordId })
+        }, 250)
+      }
+    } else {
+      // Snap back to original position
+      element.style.transition = "transform 0.2s ease-out"
+      element.style.transform = "translate(0, 0) scale(1)"
+      element.style.zIndex = ""
+    }
+
+    pointer.isDragging = false
+    this.activePointers.delete(pointerId)
+  }
+}
+
 // Audio recorder hook for recording from browser
 Hooks.AudioRecorder = {
   mounted() {

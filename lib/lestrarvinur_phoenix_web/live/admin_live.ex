@@ -166,7 +166,11 @@ defmodule LestrarvinurPhoenixWeb.AdminLive do
 
   def render(assigns) do
     ~H"""
-    <div class="min-h-screen bg-slate-100 p-4 pb-20 overflow-y-auto" phx-hook="AudioRecorder" id="audio-recorder">
+    <div
+      class="min-h-screen bg-slate-100 p-4 pb-20 overflow-y-auto"
+      phx-hook="AudioRecorder"
+      id="audio-recorder"
+    >
       <div class="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl p-6">
         <div class="flex justify-between items-center mb-6">
           <h1 class="text-2xl font-bold text-slate-800">Upptökustjórnborð (Admin)</h1>
@@ -189,12 +193,12 @@ defmodule LestrarvinurPhoenixWeb.AdminLive do
                 category_colors(category)
               ]}>
                 <h3 class="text-xl font-bold mb-4 uppercase text-slate-700">
-                  <%= Constants.color_name(category) %> listi
+                  {Constants.color_name(category)} listi
                 </h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   <%= for word <- words do %>
                     <div class="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm border border-slate-100">
-                      <span class="font-bold text-lg text-slate-700"><%= word %></span>
+                      <span class="font-bold text-lg text-slate-700">{word}</span>
 
                       <div class="flex gap-2">
                         <%= if @words_with_audio[word] do %>
@@ -256,8 +260,8 @@ defmodule LestrarvinurPhoenixWeb.AdminLive do
             <%= for {encouragement, index} <- Enum.with_index(@encouragements) do %>
               <div class="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm border border-slate-100">
                 <div class="flex-1">
-                  <span class="font-bold text-sm text-slate-700"><%= encouragement %></span>
-                  <span class="text-xs text-slate-400 ml-2">#<%= index %></span>
+                  <span class="font-bold text-sm text-slate-700">{encouragement}</span>
+                  <span class="text-xs text-slate-400 ml-2">#{index}</span>
                 </div>
 
                 <div class="flex gap-2">

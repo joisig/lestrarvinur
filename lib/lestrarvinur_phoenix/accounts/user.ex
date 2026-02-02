@@ -35,7 +35,10 @@ defmodule LestrarvinurPhoenix.Accounts.User do
     |> cast(attrs, [:username, :password, :password_confirmation])
     |> validate_required([:username, :password])
     |> validate_length(:username, min: 1, max: 255)
-    |> validate_length(:password, min: 6, message: "Lykilorð verður að vera að minnsta kosti 6 stafir")
+    |> validate_length(:password,
+      min: 6,
+      message: "Lykilorð verður að vera að minnsta kosti 6 stafir"
+    )
     |> validate_confirmation(:password, message: "Lykilorð passa ekki saman")
     |> unique_constraint(:username)
     |> hash_password()

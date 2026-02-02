@@ -2,7 +2,9 @@ defmodule LestrarvinurPhoenixWeb.ErrorJSONTest do
   use LestrarvinurPhoenixWeb.ConnCase, async: true
 
   test "renders 404" do
-    assert LestrarvinurPhoenixWeb.ErrorJSON.render("404.json", %{}) == %{errors: %{detail: "Not Found"}}
+    assert LestrarvinurPhoenixWeb.ErrorJSON.render("404.json", %{}) == %{
+             errors: %{detail: "Not Found"}
+           }
   end
 
   test "renders 500" do

@@ -59,8 +59,7 @@ defmodule LestrarvinurPhoenixWeb.AuthLive do
          |> redirect(to: ~p"/dashboard?username=#{user.username}")}
 
       {:error, :invalid_credentials} ->
-        {:noreply,
-         assign(socket, :error, "Rangt notandanafn eða lykilorð")}
+        {:noreply, assign(socket, :error, "Rangt notandanafn eða lykilorð")}
     end
   end
 
@@ -145,7 +144,7 @@ defmodule LestrarvinurPhoenixWeb.AuthLive do
 
           <%= if @error do %>
             <div class="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-              <%= @error %>
+              {@error}
             </div>
           <% end %>
 
@@ -153,7 +152,7 @@ defmodule LestrarvinurPhoenixWeb.AuthLive do
             type="submit"
             class="w-full bg-sky-500 hover:bg-sky-600 text-white font-bold py-4 rounded-xl text-xl shadow-lg transform transition active:scale-95"
           >
-            <%= if @is_login, do: "Skrá inn", else: "Nýskráning" %>
+            {if @is_login, do: "Skrá inn", else: "Nýskráning"}
           </button>
         </form>
 
@@ -162,9 +161,9 @@ defmodule LestrarvinurPhoenixWeb.AuthLive do
             phx-click="toggle_mode"
             class="text-sky-500 hover:text-sky-700 font-medium"
           >
-            <%= if @is_login,
+            {if @is_login,
               do: "Búa til nýjan aðgang?",
-              else: "Áttu nú þegar aðgang?" %>
+              else: "Áttu nú þegar aðgang?"}
           </button>
         </div>
       </div>

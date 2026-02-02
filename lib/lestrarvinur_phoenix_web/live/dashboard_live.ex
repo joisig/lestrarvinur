@@ -44,7 +44,7 @@ defmodule LestrarvinurPhoenixWeb.DashboardLive do
         <div class="max-w-4xl mx-auto flex justify-between items-center">
           <div>
             <h1 class="text-2xl font-black text-sky-600">Lestrarvinur</h1>
-            <p class="text-xs text-slate-400"><%= @user.username %></p>
+            <p class="text-xs text-slate-400">{@user.username}</p>
           </div>
           <div class="flex gap-4 items-center">
             <%= if @is_admin do %>
@@ -71,7 +71,7 @@ defmodule LestrarvinurPhoenixWeb.DashboardLive do
           <div class="relative z-10">
             <h2 class="text-lg font-medium opacity-90">Heildarfjöldi orða</h2>
             <div class="text-6xl font-black tracking-tight my-2">
-              <%= @user.total_words_read %>
+              {@user.total_words_read}
             </div>
           </div>
           <!-- Decorative shapes -->
@@ -94,19 +94,22 @@ defmodule LestrarvinurPhoenixWeb.DashboardLive do
         <h3 class="text-xl font-bold text-slate-800 mb-4 px-2">Bikarasafn</h3>
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           <%= for trophy <- @trophies do %>
-            <%
-              cycle = div(@user.total_words_read, Constants.prestige_threshold())
-              progress = rem(@user.total_words_read, Constants.prestige_threshold())
-              is_unlocked = cycle > 0 or progress >= trophy.threshold
-              multiplier = cond do
+            <% cycle = div(@user.total_words_read, Constants.prestige_threshold())
+            progress = rem(@user.total_words_read, Constants.prestige_threshold())
+            is_unlocked = cycle > 0 or progress >= trophy.threshold
+
+            multiplier =
+              cond do
                 progress >= trophy.threshold -> cycle + 1
                 cycle > 0 -> cycle
                 true -> 0
-              end
-            %>
+              end %>
             <div class={[
               "flex flex-col items-center justify-center p-4 rounded-2xl border-2",
-              if(is_unlocked, do: "bg-white border-slate-100 shadow-sm", else: "bg-slate-100 border-slate-200")
+              if(is_unlocked,
+                do: "bg-white border-slate-100 shadow-sm",
+                else: "bg-slate-100 border-slate-200"
+              )
             ]}>
               <div class="my-2">
                 <.trophy_icon
@@ -122,10 +125,10 @@ defmodule LestrarvinurPhoenixWeb.DashboardLive do
                   "font-bold text-sm",
                   if(is_unlocked, do: "text-slate-800", else: "text-slate-400")
                 ]}>
-                  <%= trophy.name %>
+                  {trophy.name}
                 </div>
                 <div class="text-xs text-slate-400 font-mono mt-1">
-                  <%= trophy.threshold %> orð
+                  {trophy.threshold} orð
                 </div>
               </div>
             </div>
@@ -143,51 +146,57 @@ defmodule LestrarvinurPhoenixWeb.DashboardLive do
       |> assign_new(:size, fn -> "md" end)
       |> assign_new(:is_locked, fn -> false end)
       |> assign_new(:prestige_multiplier, fn -> 1 end)
-      |> assign(:size_class, case assigns[:size] || "md" do
-        "sm" -> "w-8 h-8"
-        "md" -> "w-16 h-16"
-        "lg" -> "w-32 h-32"
-        _ -> "w-16 h-16"
-      end)
+      |> assign(
+        :size_class,
+        case assigns[:size] || "md" do
+          "sm" -> "w-8 h-8"
+          "md" -> "w-16 h-16"
+          "lg" -> "w-32 h-32"
+          _ -> "w-16 h-16"
+        end
+      )
       |> assign(:fill, if(assigns[:is_locked], do: "#e2e8f0", else: assigns[:color]))
       |> assign(:stroke, if(assigns[:is_locked], do: "#94a3b8", else: "#78350f"))
-      |> assign(:path, case assigns[:trophy_id] do
-        "t_50" ->
-          # Shield/Badge
-          "<path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\" />"
+      |> assign(
+        :path,
+        case assigns[:trophy_id] do
+          "t_50" ->
+            # Shield/Badge
+            "<path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z\" />"
 
-        "t_100" ->
-          # Medal with ribbon
-          "<circle cx=\"12\" cy=\"8\" r=\"7\" /><path d=\"M8.21 13.89L7 23l5-3 5 3-1.21-9.12\" />"
+          "t_100" ->
+            # Medal with ribbon
+            "<circle cx=\"12\" cy=\"8\" r=\"7\" /><path d=\"M8.21 13.89L7 23l5-3 5 3-1.21-9.12\" />"
 
-        "t_200" ->
-          # Ribbon badge
-          "<circle cx=\"12\" cy=\"10\" r=\"5\" /><path d=\"M12 15l-3 6 3-2 3 2-3-6\" />"
+          "t_200" ->
+            # Ribbon badge
+            "<circle cx=\"12\" cy=\"10\" r=\"5\" /><path d=\"M12 15l-3 6 3-2 3 2-3-6\" />"
 
-        "t_300" ->
-          # Trophy cup
-          "<path d=\"M8 21h8\" /><path d=\"M12 12v9\" /><path d=\"M5.3 18h13.4\" /><path d=\"M6 3h12a2 2 0 0 1 2 2v2a5 5 0 0 1-4 4.9H8.1A5 5 0 0 1 4 7V5a2 2 0 0 1 2-2z\" />"
+          "t_300" ->
+            # Trophy cup
+            "<path d=\"M8 21h8\" /><path d=\"M12 12v9\" /><path d=\"M5.3 18h13.4\" /><path d=\"M6 3h12a2 2 0 0 1 2 2v2a5 5 0 0 1-4 4.9H8.1A5 5 0 0 1 4 7V5a2 2 0 0 1 2-2z\" />"
 
-        "t_400" ->
-          # Star
-          "<polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\" />"
+          "t_400" ->
+            # Star
+            "<polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\" />"
 
-        "t_500" ->
-          # Crown
-          "<path d=\"M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z\" /><path d=\"M5 16h14\" />"
+          "t_500" ->
+            # Crown
+            "<path d=\"M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z\" /><path d=\"M5 16h14\" />"
 
-        "t_750" ->
-          # Diamond/Gem
-          "<path d=\"M6 3h12l4 6-10 10L2 9z\" />"
+          "t_750" ->
+            # Diamond/Gem
+            "<path d=\"M6 3h12l4 6-10 10L2 9z\" />"
 
-        "t_1000" ->
-          # King's crown
-          "<path d=\"M21 12.79A22.78 22.78 0 0 1 12 2a22.9 22.9 0 0 1-9 10.79L2 21h20l-1-8.21z\" />"
+          "t_1000" ->
+            # King's crown
+            "<path d=\"M21 12.79A22.78 22.78 0 0 1 12 2a22.9 22.9 0 0 1-9 10.79L2 21h20l-1-8.21z\" />"
 
-        _ ->
-          # Default: Large elaborate cup
-          "<path d=\"M10 15v4a3 3 0 0 0 6 0v-4\" /><path d=\"M10 15a6 6 0 0 1 6 0\" /><path d=\"M13 3a10 10 0 0 0-10 10v0a3 3 0 0 0 6 0V5\" /><path d=\"M13 3a10 10 0 0 1 10 10v0a3 3 0 0 1-6 0V5\" /><line x1=\"8\" y1=\"21\" x2=\"18\" y2=\"21\" />"
-      end)
+          _ ->
+            # Default: Large elaborate cup
+            "<path d=\"M10 15v4a3 3 0 0 0 6 0v-4\" /><path d=\"M10 15a6 6 0 0 1 6 0\" /><path d=\"M13 3a10 10 0 0 0-10 10v0a3 3 0 0 0 6 0V5\" /><path d=\"M13 3a10 10 0 0 1 10 10v0a3 3 0 0 1-6 0V5\" /><line x1=\"8\" y1=\"21\" x2=\"18\" y2=\"21\" />"
+        end
+      )
 
     ~H"""
     <div class={[
@@ -203,11 +212,11 @@ defmodule LestrarvinurPhoenixWeb.DashboardLive do
         stroke-linecap="round"
         stroke-linejoin="round"
       >
-        <%= Phoenix.HTML.raw(@path) %>
+        {Phoenix.HTML.raw(@path)}
       </svg>
       <%= if @prestige_multiplier > 1 and !@is_locked do %>
         <div class="absolute -top-2 -right-2 bg-red-500 text-white font-bold text-xs rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-sm animate-bounce">
-          x<%= @prestige_multiplier %>
+          x{@prestige_multiplier}
         </div>
       <% end %>
     </div>

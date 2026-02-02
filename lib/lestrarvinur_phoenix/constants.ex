@@ -190,7 +190,8 @@ defmodule LestrarvinurPhoenix.Constants do
   ]
 
   # Prestige threshold
-  @prestige_threshold 2_000  # Set to 2000 for testing (normally 10_000)
+  # Set to 2000 for testing (normally 10_000)
+  @prestige_threshold 2_000
 
   # Admin username
   @admin_username "joi@joisig.com"

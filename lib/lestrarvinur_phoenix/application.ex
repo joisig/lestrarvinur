@@ -12,7 +12,8 @@ defmodule LestrarvinurPhoenix.Application do
       LestrarvinurPhoenix.Repo,
       {Ecto.Migrator,
        repos: Application.fetch_env!(:lestrarvinur_phoenix, :ecto_repos), skip: skip_migrations?()},
-      {DNSCluster, query: Application.get_env(:lestrarvinur_phoenix, :dns_cluster_query) || :ignore},
+      {DNSCluster,
+       query: Application.get_env(:lestrarvinur_phoenix, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: LestrarvinurPhoenix.PubSub},
       # Start a worker by calling: LestrarvinurPhoenix.Worker.start_link(arg)
       # {LestrarvinurPhoenix.Worker, arg},
