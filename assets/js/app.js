@@ -84,24 +84,40 @@ Hooks.DragonFling = {
   },
 
   // Check if a point (in image percentage coordinates) hits a non-background pixel
+  // Samples multiple points around the hit location for more forgiving detection
   isNonBackgroundHit(hitXPercent, hitYPercent) {
     if (!this.hitCtx) return true // Fallback to always hit if canvas not ready
 
     const x = Math.floor((hitXPercent / 100) * this.hitCanvas.width)
     const y = Math.floor((hitYPercent / 100) * this.hitCanvas.height)
 
+    // Sample a 5x5 grid around the hit point for more forgiving detection
+    const sampleOffsets = [
+      [0, 0], [-10, 0], [10, 0], [0, -10], [0, 10],
+      [-10, -10], [10, -10], [-10, 10], [10, 10],
+      [-20, 0], [20, 0], [0, -20], [0, 20]
+    ]
+
     try {
-      const pixel = this.hitCtx.getImageData(x, y, 1, 1).data
-      const r = pixel[0], g = pixel[1], b = pixel[2]
+      for (const [dx, dy] of sampleOffsets) {
+        const sampleX = Math.max(0, Math.min(this.hitCanvas.width - 1, x + dx))
+        const sampleY = Math.max(0, Math.min(this.hitCanvas.height - 1, y + dy))
 
-      // Check if pixel is close to background color (within threshold)
-      const threshold = 30
-      const isBackground =
-        Math.abs(r - this.bgColor.r) < threshold &&
-        Math.abs(g - this.bgColor.g) < threshold &&
-        Math.abs(b - this.bgColor.b) < threshold
+        const pixel = this.hitCtx.getImageData(sampleX, sampleY, 1, 1).data
+        const r = pixel[0], g = pixel[1], b = pixel[2]
 
-      return !isBackground
+        // Check if pixel is close to background color (within threshold)
+        const threshold = 40 // More forgiving threshold
+        const isBackground =
+          Math.abs(r - this.bgColor.r) < threshold &&
+          Math.abs(g - this.bgColor.g) < threshold &&
+          Math.abs(b - this.bgColor.b) < threshold
+
+        if (!isBackground) {
+          return true // Found a non-background pixel, count as hit
+        }
+      }
+      return false // All sampled pixels were background
     } catch (e) {
       console.log("Hit detection error:", e)
       return true // Fallback to hit on error
@@ -211,8 +227,8 @@ Hooks.DragonFling = {
     const wordId = p.wordId
     const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy)
 
-    // Need upward velocity and minimum speed
-    if (p.vy < -200 && speed > 300) {
+    // Need upward velocity and minimum speed (very forgiving)
+    if (p.vy < -100 && speed > 150) {
       const dragonContainer = this.el.querySelector(".dragon-container")
       const dragonImg = this.el.querySelector(".dragon-container img")
       if (!dragonContainer || !dragonImg) {
@@ -228,17 +244,47 @@ Hooks.DragonFling = {
       const dirX = p.vx / speed
       const dirY = p.vy / speed
 
-      // Calculate flight distance based on speed
-      const flightTime = 0.4 // seconds
-      const distance = Math.min(speed * flightTime, 800)
-
       // Start from element's current visual center
       const startX = elRect.left + elRect.width / 2
       const startY = elRect.top + elRect.height / 2
 
+      // Calculate target - center of dragon image
+      const dragonCenterX = imgRect.left + imgRect.width / 2
+      const dragonCenterY = imgRect.top + imgRect.height / 2
+
+      // Calculate distance to dragon center
+      const distToDragon = Math.sqrt(
+        Math.pow(dragonCenterX - startX, 2) +
+        Math.pow(dragonCenterY - startY, 2)
+      )
+
+      // Use a very forgiving distance calculation:
+      // - Almost always land on the dragon (80-100% of distance)
+      // - Speed has minimal effect to keep it consistent
+      const speedFactor = Math.min(1, (speed - 200) / 600) // 0 at speed 200, 1 at speed 800+
+      const minDist = distToDragon * 0.8
+      const maxDist = distToDragon * 1.0
+      const distance = minDist + (maxDist - minDist) * speedFactor
+
+      // Add aim assist: blend user's direction with direction to dragon center
+      const toDragonX = (dragonCenterX - startX) / distToDragon
+      const toDragonY = (dragonCenterY - startY) / distToDragon
+
+      // 50% user direction, 50% toward dragon center (strong aim assist)
+      const aimAssist = 0.5
+      const finalDirX = dirX * (1 - aimAssist) + toDragonX * aimAssist
+      const finalDirY = dirY * (1 - aimAssist) + toDragonY * aimAssist
+
+      // Renormalize
+      const finalDirMag = Math.sqrt(finalDirX * finalDirX + finalDirY * finalDirY)
+      const normDirX = finalDirX / finalDirMag
+      const normDirY = finalDirY / finalDirMag
+
       // Where will it land?
-      const endX = startX + dirX * distance
-      const endY = startY + dirY * distance
+      const endX = startX + normDirX * distance
+      const endY = startY + normDirY * distance
+
+      const flightTime = 0.4 // seconds
 
       console.log("Fling:", { startX, startY, endX, endY, dirX, dirY, distance, imgRect: { left: imgRect.left, right: imgRect.right, top: imgRect.top, bottom: imgRect.bottom } })
 
@@ -287,7 +333,7 @@ Hooks.DragonFling = {
         // Animate the clone flying to target (from element center to clamped end position)
         const flyDx = clampedEndX - startX
         const flyDy = clampedEndY - startY
-        const rotation = dirX * 360 // Spin based on direction
+        const rotation = normDirX * 360 // Spin based on direction
 
         // Trigger animation on next frame
         requestAnimationFrame(() => {
