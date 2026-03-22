@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+exec safehouse \
+  --enable=electron \
+  --env=~/.env/shclaude-editor.sh \
+  --add-dirs-ro="$HOME/p/claudethings:/tmp/screenshots-for-claude:$HOME/Desktop" \
+  --add-dirs="$HOME/.local/run" \
+  claude --dangerously-skip-permissions "$@"

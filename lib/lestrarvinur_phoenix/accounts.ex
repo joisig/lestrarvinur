@@ -79,4 +79,20 @@ defmodule LestrarvinurPhoenix.Accounts do
       _user -> true
     end
   end
+
+  @doc """
+  Increments total math problems by 1 and updates the level count for the given level.
+  """
+  def increment_math_problems(user, level) do
+    new_total = user.total_math_problems + 1
+    level_counts = User.decode_math_level_counts(user)
+    new_level_counts = Map.update(level_counts, level, 1, &(&1 + 1))
+
+    user
+    |> User.changeset(%{
+      total_math_problems: new_total,
+      math_level_counts: User.encode_math_level_counts(new_level_counts)
+    })
+    |> Repo.update()
+  end
 end

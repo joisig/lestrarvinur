@@ -11,6 +11,12 @@ defmodule LestrarvinurPhoenix.Accounts.User do
     field :current_word_index, :integer, default: 0
     field :shuffled_sequence, :string, default: "[]"
 
+    # Math game fields
+    field :total_math_problems, :integer, default: 0
+    field :math_level_counts, :string, default: "{}"
+    field :math_current_index, :integer, default: 0
+    field :math_shuffled_sequence, :string, default: "[]"
+
     # Virtual fields for password input
     field :password, :string, virtual: true
     field :password_confirmation, :string, virtual: true
@@ -21,7 +27,16 @@ defmodule LestrarvinurPhoenix.Accounts.User do
   @doc false
   def changeset(user, attrs) do
     user
-    |> cast(attrs, [:username, :total_words_read, :current_word_index, :shuffled_sequence])
+    |> cast(attrs, [
+      :username,
+      :total_words_read,
+      :current_word_index,
+      :shuffled_sequence,
+      :total_math_problems,
+      :math_level_counts,
+      :math_current_index,
+      :math_shuffled_sequence
+    ])
     |> validate_required([:username])
     |> validate_length(:username, min: 1, max: 255)
     |> unique_constraint(:username)
@@ -81,5 +96,29 @@ defmodule LestrarvinurPhoenix.Accounts.User do
   # Encode word sequence to JSON
   def encode_sequence(sequence) when is_list(sequence) do
     Jason.encode!(sequence)
+  end
+
+  # Decode math shuffled sequence
+  def decode_math_sequence(user) do
+    case Jason.decode(user.math_shuffled_sequence) do
+      {:ok, sequence} -> sequence
+      {:error, _} -> []
+    end
+  end
+
+  # Decode math level counts JSON map to %{integer_level => count}
+  def decode_math_level_counts(user) do
+    case Jason.decode(user.math_level_counts) do
+      {:ok, map} ->
+        Map.new(map, fn {k, v} -> {String.to_integer(k), v} end)
+
+      {:error, _} ->
+        %{}
+    end
+  end
+
+  # Encode math level counts map to JSON
+  def encode_math_level_counts(counts) when is_map(counts) do
+    Jason.encode!(counts)
   end
 end
