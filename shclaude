@@ -4,4 +4,4 @@ exec safehouse \
   --env=~/.env/shclaude-editor.sh \
   --add-dirs-ro="$HOME/p/claudethings:/tmp/screenshots-for-claude:$HOME/Desktop" \
   --add-dirs="$HOME/.local/run" \
-  claude --dangerously-skip-permissions "$@"
+  claude --model claude-opus-4-6 --effort max --dangerously-skip-permissions "$@"
