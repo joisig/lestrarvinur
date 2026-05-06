@@ -369,6 +369,100 @@ Hooks.DragonFling = {
   }
 }
 
+// Centipede minigame hook. Animates segments along a sinusoidal path that
+// drifts from the right edge to the left edge while wiggling vertically. Each
+// segment trails the previous by a fixed time delay so the chain looks like a
+// crawling centipede. Tapping a segment pops it (CSS animation on the inner
+// element) and notifies LiveView; segments that escape past the left edge
+// notify too so the round can end.
+Hooks.Centipede = {
+  mounted() {
+    this.startedAt = performance.now()
+    this.segDelay = 0.22
+    this.cycleSec = 24
+    this.amp = 0.18
+    this.poppedIds = new Set()
+    this.escapedIds = new Set()
+    this.running = true
+
+    this.handleClick = (e) => {
+      const target = e.target.closest(".centipede-segment")
+      if (!target) return
+      const id = target.dataset.segmentId
+      if (this.poppedIds.has(id) || this.escapedIds.has(id)) return
+      this.poppedIds.add(id)
+      target.classList.add("centipede-popped")
+      // Hide the outer element after the pop animation so it doesn't
+      // linger at its last position when JS stops updating it.
+      setTimeout(() => { target.style.opacity = "0" }, 560)
+      this.pushEvent("centipede_kill", { id })
+    }
+    this.el.addEventListener("click", this.handleClick)
+
+    this.animate = this.animate.bind(this)
+    this.animFrame = requestAnimationFrame(this.animate)
+  },
+
+  destroyed() {
+    this.running = false
+    if (this.animFrame) cancelAnimationFrame(this.animFrame)
+    if (this.handleClick) this.el.removeEventListener("click", this.handleClick)
+  },
+
+  animate(now) {
+    if (!this.running) return
+    const arena = this.el.querySelector("[data-centipede-arena]")
+    if (!arena) {
+      this.animFrame = requestAnimationFrame(this.animate)
+      return
+    }
+    const elapsed = (now - this.startedAt) / 1000
+    const w = arena.clientWidth
+    const h = arena.clientHeight
+    const segments = arena.querySelectorAll(".centipede-segment")
+
+    segments.forEach((seg, i) => {
+      const id = seg.dataset.segmentId
+      if (this.poppedIds.has(id)) return
+      if (this.escapedIds.has(id)) return
+
+      const t = elapsed - i * this.segDelay
+      if (t < 0) {
+        seg.style.opacity = "0"
+        return
+      }
+
+      const progress = t / this.cycleSec
+      if (progress >= 1) {
+        this.escapedIds.add(id)
+        seg.style.opacity = "0"
+        seg.style.transform = "translate(-9999px, -9999px)"
+        this.pushEvent("centipede_escape", { id })
+        return
+      }
+
+      // x: from off-screen right to off-screen left
+      const x = w + 60 - progress * (w + 120)
+      // y: drifts gently downward as progress advances
+      const yCenter = h * (0.25 + progress * 0.5)
+      const wavePhase = progress * Math.PI * 6
+      const yOffset = Math.sin(wavePhase) * h * this.amp
+      const y = yCenter + yOffset
+
+      // Tilt rotation based on motion tangent so it looks like the
+      // centipede leans into the wiggle.
+      const tangentY = Math.cos(wavePhase) * this.amp * h * Math.PI * 6
+      const tangentX = -(w + 120)
+      const angleDeg = Math.atan2(tangentY, tangentX) * 180 / Math.PI
+
+      seg.style.opacity = "1"
+      seg.style.transform = `translate(${x}px, ${y}px) rotate(${angleDeg}deg)`
+    })
+
+    this.animFrame = requestAnimationFrame(this.animate)
+  }
+}
+
 // Audio recorder hook for recording from browser
 Hooks.AudioRecorder = {
   mounted() {

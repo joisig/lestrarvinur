@@ -146,46 +146,46 @@ defmodule LestrarvinurPhoenix.MathConstants do
 
   @doc """
   Generate a single math problem for the given level.
-  Returns %{question: "3 + 4", answer: 7, level: 1}
+  Returns %{question: "3 + 4", answer: 7, level: 1, a: 3, b: 4, op: :add}
   """
   def generate_problem(1) do
     a = Enum.random(0..10)
     b = Enum.random(0..(10 - a))
-    %{question: "#{a} + #{b}", answer: a + b, level: 1}
+    build_problem(:add, a, b, 1)
   end
 
   def generate_problem(2) do
     a = Enum.random(1..10)
     b = Enum.random(0..a)
-    %{question: "#{a} − #{b}", answer: a - b, level: 2}
+    build_problem(:sub, a, b, 2)
   end
 
   def generate_problem(3) do
     # Sum up to 20, at least one number > 5
     a = Enum.random(6..14)
     b = Enum.random(1..min(20 - a, 14))
-    %{question: "#{a} + #{b}", answer: a + b, level: 3}
+    build_problem(:add, a, b, 3)
   end
 
   def generate_problem(4) do
     # Subtract from numbers up to 20, result >= 0
     a = Enum.random(11..20)
     b = Enum.random(1..a)
-    %{question: "#{a} − #{b}", answer: a - b, level: 4}
+    build_problem(:sub, a, b, 4)
   end
 
   def generate_problem(5) do
     # Tens: multiples of 10, sum <= 100
     a = Enum.random(1..9) * 10
     b = Enum.random(1..((100 - a) |> div(10))) * 10
-    %{question: "#{a} + #{b}", answer: a + b, level: 5}
+    build_problem(:add, a, b, 5)
   end
 
   def generate_problem(6) do
     # Tens: subtract multiples of 10
     a = Enum.random(2..10) * 10
     b = Enum.random(1..(div(a, 10) - 1)) * 10
-    %{question: "#{a} − #{b}", answer: a - b, level: 6}
+    build_problem(:sub, a, b, 6)
   end
 
   def generate_problem(7) do
@@ -196,7 +196,7 @@ defmodule LestrarvinurPhoenix.MathConstants do
     b_ones = Enum.random(1..(9 - a_ones))
     a = a_tens * 10 + a_ones
     b = b_tens * 10 + b_ones
-    %{question: "#{a} + #{b}", answer: a + b, level: 7}
+    build_problem(:add, a, b, 7)
   end
 
   def generate_problem(8) do
@@ -207,7 +207,7 @@ defmodule LestrarvinurPhoenix.MathConstants do
     b_ones = Enum.random(1..a_ones)
     a = a_tens * 10 + a_ones
     b = b_tens * 10 + b_ones
-    %{question: "#{a} − #{b}", answer: a - b, level: 8}
+    build_problem(:sub, a, b, 8)
   end
 
   def generate_problem(9) do
@@ -218,7 +218,7 @@ defmodule LestrarvinurPhoenix.MathConstants do
     b_tens = Enum.random(1..(8 - a_tens))
     a = a_tens * 10 + a_ones
     b = b_tens * 10 + b_ones
-    %{question: "#{a} + #{b}", answer: a + b, level: 9}
+    build_problem(:add, a, b, 9)
   end
 
   def generate_problem(10) do
@@ -229,7 +229,7 @@ defmodule LestrarvinurPhoenix.MathConstants do
     b_tens = Enum.random(1..(a_tens - 1))
     a = a_tens * 10 + a_ones
     b = b_tens * 10 + b_ones
-    %{question: "#{a} − #{b}", answer: a - b, level: 10}
+    build_problem(:sub, a, b, 10)
   end
 
   def generate_problem(11) do
@@ -239,7 +239,7 @@ defmodule LestrarvinurPhoenix.MathConstants do
 
     # Randomly swap order for variety
     {a, b} = if :rand.uniform() > 0.5, do: {other, factor}, else: {factor, other}
-    %{question: "#{a} × #{b}", answer: a * b, level: 11}
+    build_problem(:mul, a, b, 11)
   end
 
   def generate_problem(12) do
@@ -247,22 +247,106 @@ defmodule LestrarvinurPhoenix.MathConstants do
     factor = Enum.random([3, 4, 6, 7, 8, 9])
     other = Enum.random(2..9)
     {a, b} = if :rand.uniform() > 0.5, do: {other, factor}, else: {factor, other}
-    %{question: "#{a} × #{b}", answer: a * b, level: 12}
+    build_problem(:mul, a, b, 12)
+  end
+
+  # Not intended for use outside this module
+  # Builds the canonical problem map given operation/inputs/level.
+  def build_problem(op, a, b, level) do
+    %{
+      question: render_question(op, a, b),
+      answer: apply_op(op, a, b),
+      level: level,
+      a: a,
+      b: b,
+      op: op
+    }
+  end
+
+  def apply_op(:add, a, b), do: a + b
+  def apply_op(:sub, a, b), do: a - b
+  def apply_op(:mul, a, b), do: a * b
+
+  def render_question(:add, a, b), do: "#{a} + #{b}"
+  def render_question(:sub, a, b), do: "#{a} − #{b}"
+  def render_question(:mul, a, b), do: "#{a} × #{b}"
+
+  # Operation swapped to provide a misleading-but-plausible distractor.
+  def swap_op(:add), do: :sub
+  def swap_op(:sub), do: :add
+  def swap_op(:mul), do: :add
+
+  @doc """
+  Generate four shuffled multiple-choice options for a problem.
+
+  Guarantees the correct answer is included, plus:
+    * one distractor reachable by changing one input by 1
+    * one distractor reachable by switching the operation
+    * one extra nearby distractor
+
+  All choices are non-negative integers and distinct.
+  """
+  def generate_choices(%{a: a, b: b, op: op, answer: answer}) do
+    by_one_candidates =
+      [
+        apply_op(op, a + 1, b),
+        apply_op(op, a, b + 1),
+        apply_op(op, max(a - 1, 0), b),
+        apply_op(op, a, max(b - 1, 0))
+      ]
+      |> Enum.filter(fn x -> x >= 0 and x != answer end)
+      |> Enum.uniq()
+
+    d_one =
+      case by_one_candidates do
+        [] -> answer + 1
+        list -> Enum.random(list)
+      end
+
+    swapped = apply_op(swap_op(op), a, b)
+
+    d_swap =
+      if swapped >= 0 and swapped != answer and swapped != d_one do
+        swapped
+      else
+        fallback =
+          [
+            apply_op(op, a + 2, b),
+            apply_op(op, a, b + 2),
+            apply_op(op, max(a - 2, 0), b),
+            apply_op(op, a, max(b - 2, 0))
+          ]
+          |> Enum.find(fn x -> x >= 0 and x != answer and x != d_one end)
+
+        fallback || answer + 2
+      end
+
+    d_extra =
+      [answer + 1, answer - 1, answer + 2, answer - 2, answer + 5, answer + 10]
+      |> Enum.filter(fn x -> x >= 0 and x not in [answer, d_one, d_swap] end)
+      |> case do
+        [] -> answer + 3
+        list -> Enum.random(list)
+      end
+
+    Enum.shuffle([answer, d_one, d_swap, d_extra])
   end
 
   @doc """
   Generate a sequence of math problems using weighted distribution.
-  Returns a list of problem maps suitable for JSON encoding.
+  Returns a list of problem maps suitable for JSON encoding (includes choices).
   """
   def generate_game_sequence(highest_level, count \\ 200) do
     for _i <- 1..count do
       level = pick_level(highest_level)
       problem = generate_problem(level)
+      choices = generate_choices(problem)
 
       %{
         "question" => problem.question,
         "answer" => problem.answer,
-        "level" => problem.level
+        "level" => problem.level,
+        "choices" => choices
       }
     end
   end

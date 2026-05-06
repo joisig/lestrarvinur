@@ -2,6 +2,7 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
   use LestrarvinurPhoenixWeb, :live_view
 
   alias LestrarvinurPhoenix.{Accounts, Constants}
+  import LestrarvinurPhoenixWeb.CentipedeOverlay
 
   def mount(%{"username" => username}, _session, socket) do
     case Accounts.get_user(username) do
@@ -63,7 +64,12 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
          |> assign(:dragon_health, 20)
          |> assign(:dragon_max_health, 20)
          |> assign(:dragon_exploding, false)
-         |> assign(:pending_trophy, nil)}
+         |> assign(:pending_trophy, nil)
+         # Centipede minigame state
+         |> assign(:centipede_mode, false)
+         |> assign(:centipede_segments, [])
+         |> assign(:centipede_killed, 0)
+         |> assign(:centipede_total, 0)}
     end
   end
 
@@ -77,8 +83,8 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
 
   def handle_event("next", _params, socket) do
     cond do
-      socket.assigns.dragon_mode ->
-        # Don't advance during dragon mode, clicks should be handled by the game
+      socket.assigns.dragon_mode or socket.assigns.centipede_mode ->
+        # Don't advance during minigames, clicks should be handled by the game
         {:noreply, socket}
 
       socket.assigns.show_encouragement or socket.assigns.just_unlocked ->
@@ -171,6 +177,18 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
     {:noreply, socket}
   end
 
+  def handle_event("centipede_kill", %{"id" => _id}, socket) do
+    {:noreply, register_centipede_done(socket)}
+  end
+
+  def handle_event("centipede_escape", %{"id" => _id}, socket) do
+    {:noreply, register_centipede_done(socket)}
+  end
+
+  def handle_event("skip_centipede_game", _params, socket) do
+    {:noreply, exit_centipede_mode(socket)}
+  end
+
   def handle_info({:clear_hit, _word_id}, socket) do
     {:noreply, assign(socket, :dragon_hit_active, false)}
   end
@@ -219,6 +237,10 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
       true ->
         {:noreply, socket}
     end
+  end
+
+  def handle_info(:centipede_done, socket) do
+    {:noreply, exit_centipede_mode(socket)}
   end
 
   def handle_info(:dragon_explosion_done, socket) do
@@ -285,39 +307,28 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
       |> assign(:user, updated_user)
       |> assign(:recent_words, recent_words)
 
-    # If dragon milestone, start dragon game (trophy will be shown after)
+    # If we hit a milestone, start either the dragon or centipede minigame
+    # (trophy is shown afterwards via :pending_trophy).
     socket =
       if dragon_milestone do
-        # Select the 35 longest words from recent words, then shuffle
-        dragon_words =
-          recent_words
-          |> Enum.sort_by(fn w -> -String.length(w.word) end)
-          |> Enum.take(35)
-          |> Enum.shuffle()
-          |> Enum.with_index()
-          |> Enum.map(fn {word, idx} -> Map.put(word, :id, "dw-#{idx}") end)
+        {game, updated_user} = pick_and_consume_milestone_game(updated_user)
+        socket = assign(socket, :user, updated_user)
 
-        # Start with first 6 words visible
-        {initial_visible, remaining} = Enum.split(dragon_words, 6)
-
-        socket
-        |> assign(:dragon_mode, true)
-        |> assign(:dragon_words_queue, remaining)
-        |> assign(:dragon_visible_words, initial_visible)
-        |> assign(:dragon_words_flung, 0)
-        |> assign(:dragon_total_words, length(dragon_words))
-        |> assign(:dragon_hit_active, false)
-        |> then(fn s ->
-          # Store trophy to show after dragon game if applicable
-          if newly_unlocked do
-            multiplier = if wrapped, do: cycle, else: cycle + 1
-
-            assign(s, :pending_trophy, newly_unlocked)
-            |> assign(:trophy_multiplier, multiplier)
-          else
-            s
+        socket =
+          case game do
+            :dragon -> setup_dragon_mode(socket, recent_words)
+            :centipede -> setup_centipede_mode(socket, recent_words)
           end
-        end)
+
+        if newly_unlocked do
+          multiplier = if wrapped, do: cycle, else: cycle + 1
+
+          socket
+          |> assign(:pending_trophy, newly_unlocked)
+          |> assign(:trophy_multiplier, multiplier)
+        else
+          socket
+        end
       else
         # No dragon game, handle trophy/encouragement normally
         socket
@@ -392,30 +403,103 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
   end
 
   # Not intended for use outside this module
-  defp generate_game_sequence do
-    yellow = Constants.words_by_category(:yellow)
-    red = Constants.words_by_category(:red)
-    green = Constants.words_by_category(:green)
-    blue = Constants.words_by_category(:blue)
+  # Decides which minigame the next milestone shows. If the user has a forced
+  # `next_milestone_game` (e.g. set to "centipede" so the kid sees the new game
+  # next time they hit a milestone), respect that and clear it. Otherwise pick
+  # randomly with dragon weighted 2/3 and centipede 1/3.
+  def pick_and_consume_milestone_game(user) do
+    case user.next_milestone_game do
+      forced when forced in ["dragon", "centipede"] ->
+        {:ok, cleared} = Accounts.update_user(user, %{next_milestone_game: ""})
+        {String.to_existing_atom(forced), cleared}
 
-    (Enum.shuffle(yellow) ++
-       Enum.shuffle(red) ++
-       Enum.shuffle(green) ++
-       Enum.shuffle(blue))
-    |> Enum.map(fn word ->
-      %{"word" => word, "category" => Atom.to_string(get_category(word))}
-    end)
+      _ ->
+        game = Enum.random([:dragon, :dragon, :centipede])
+        {game, user}
+    end
   end
 
   # Not intended for use outside this module
-  defp get_category(word) do
-    cond do
-      word in Constants.words_by_category(:yellow) -> :yellow
-      word in Constants.words_by_category(:blue) -> :blue
-      word in Constants.words_by_category(:red) -> :red
-      word in Constants.words_by_category(:green) -> :green
-      true -> :yellow
+  def setup_dragon_mode(socket, recent_words) do
+    # Select the 35 longest words from recent words, then shuffle
+    dragon_words =
+      recent_words
+      |> Enum.sort_by(fn w -> -String.length(w.word) end)
+      |> Enum.take(35)
+      |> Enum.shuffle()
+      |> Enum.with_index()
+      |> Enum.map(fn {word, idx} -> Map.put(word, :id, "dw-#{idx}") end)
+
+    {initial_visible, remaining} = Enum.split(dragon_words, 6)
+
+    socket
+    |> assign(:dragon_mode, true)
+    |> assign(:dragon_words_queue, remaining)
+    |> assign(:dragon_visible_words, initial_visible)
+    |> assign(:dragon_words_flung, 0)
+    |> assign(:dragon_total_words, length(dragon_words))
+    |> assign(:dragon_hit_active, false)
+  end
+
+  # Not intended for use outside this module
+  def setup_centipede_mode(socket, recent_words) do
+    segments =
+      recent_words
+      |> Enum.shuffle()
+      |> Enum.take(25)
+      |> Enum.with_index()
+      |> Enum.map(fn {w, idx} ->
+        %{id: "cs-#{idx}", text: w.word, category: w.category}
+      end)
+
+    socket
+    |> assign(:centipede_mode, true)
+    |> assign(:centipede_segments, segments)
+    |> assign(:centipede_killed, 0)
+    |> assign(:centipede_total, length(segments))
+  end
+
+  # Not intended for use outside this module
+  def register_centipede_done(socket) do
+    new_killed = socket.assigns.centipede_killed + 1
+    socket = assign(socket, :centipede_killed, new_killed)
+
+    if new_killed >= socket.assigns.centipede_total do
+      Process.send_after(self(), :centipede_done, 700)
+      socket
+    else
+      socket
     end
+  end
+
+  # Not intended for use outside this module
+  def exit_centipede_mode(socket) do
+    socket =
+      socket
+      |> assign(:centipede_mode, false)
+      |> assign(:centipede_segments, [])
+      |> assign(:centipede_killed, 0)
+      |> assign(:centipede_total, 0)
+
+    if socket.assigns.pending_trophy do
+      socket
+      |> assign(:just_unlocked, socket.assigns.pending_trophy)
+      |> assign(:pending_trophy, nil)
+    else
+      socket
+    end
+  end
+
+  # Not intended for use outside this module
+  defp generate_game_sequence do
+    [:yellow, :red, :green, :blue, :purple, :orange]
+    |> Enum.flat_map(fn category ->
+      Constants.words_by_category(category)
+      |> Enum.shuffle()
+      |> Enum.map(fn word ->
+        %{"word" => word, "category" => Atom.to_string(category)}
+      end)
+    end)
   end
 
   def render(assigns) do
@@ -524,6 +608,14 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
           health={@dragon_health}
           max_health={@dragon_max_health}
           exploding={@dragon_exploding}
+        />
+      <% end %>
+      <!-- Centipede Minigame Overlay -->
+      <%= if @centipede_mode do %>
+        <.centipede_overlay
+          segments={@centipede_segments}
+          killed={@centipede_killed}
+          total={@centipede_total}
         />
       <% end %>
     </div>
@@ -725,6 +817,8 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
   defp word_card_color(:blue), do: "border-4 border-blue-400"
   defp word_card_color(:red), do: "border-4 border-red-400"
   defp word_card_color(:green), do: "border-4 border-green-400"
+  defp word_card_color(:purple), do: "border-4 border-purple-400"
+  defp word_card_color(:orange), do: "border-4 border-orange-400"
   defp word_card_color(_), do: "border-4 border-yellow-400"
 
   # Background colors for list categories
@@ -732,6 +826,8 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
   defp bg_color(:blue), do: "bg-blue-50"
   defp bg_color(:red), do: "bg-red-50"
   defp bg_color(:green), do: "bg-green-50"
+  defp bg_color(:purple), do: "bg-purple-50"
+  defp bg_color(:orange), do: "bg-orange-50"
   defp bg_color(_), do: "bg-yellow-50"
 
   # Border colors
@@ -739,6 +835,8 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
   defp border_color(:blue), do: "border-blue-200"
   defp border_color(:red), do: "border-red-200"
   defp border_color(:green), do: "border-green-200"
+  defp border_color(:purple), do: "border-purple-200"
+  defp border_color(:orange), do: "border-orange-200"
   defp border_color(_), do: "border-yellow-200"
 
   # Accent colors
@@ -746,6 +844,8 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
   defp accent_color(:blue), do: "text-blue-600"
   defp accent_color(:red), do: "text-red-600"
   defp accent_color(:green), do: "text-green-600"
+  defp accent_color(:purple), do: "text-purple-600"
+  defp accent_color(:orange), do: "text-orange-600"
   defp accent_color(_), do: "text-yellow-600"
 
   # Trophy icon component (reused from dashboard)

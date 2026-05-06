@@ -17,6 +17,11 @@ defmodule LestrarvinurPhoenix.Accounts.User do
     field :math_current_index, :integer, default: 0
     field :math_shuffled_sequence, :string, default: "[]"
 
+    # Forces the next milestone minigame ("centipede" or "dragon"); empty string
+    # means random pick. Set to "centipede" for new users so they meet the new
+    # game on their first milestone.
+    field :next_milestone_game, :string, default: "centipede"
+
     # Virtual fields for password input
     field :password, :string, virtual: true
     field :password_confirmation, :string, virtual: true
@@ -35,7 +40,8 @@ defmodule LestrarvinurPhoenix.Accounts.User do
       :total_math_problems,
       :math_level_counts,
       :math_current_index,
-      :math_shuffled_sequence
+      :math_shuffled_sequence,
+      :next_milestone_game
     ])
     |> validate_required([:username])
     |> validate_length(:username, min: 1, max: 255)

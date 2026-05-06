@@ -8,11 +8,12 @@ defmodule LestrarvinurPhoenix.Constants do
     yellow: "Guli",
     blue: "Blái",
     red: "Rauði",
-    green: "Græni"
+    green: "Græni",
+    purple: "Fjólublái",
+    orange: "Appelsínuguli"
   }
 
-  # Word lists organized by color/category
-  @word_lists %{
+  @original_word_lists %{
     yellow: [
       "en",
       "því",
@@ -110,6 +111,38 @@ defmodule LestrarvinurPhoenix.Constants do
       "henni"
     ]
   }
+
+  # Read the 500-word list at compile time, drop words already in the original
+  # four lists, and split the remainder deterministically into purple/orange
+  # using a stable hash so the assignment doesn't change across rebuilds.
+  @top500_path Path.expand("../../500ord.txt", __DIR__)
+  @external_resource @top500_path
+
+  @existing_words @original_word_lists
+                  |> Map.values()
+                  |> List.flatten()
+                  |> MapSet.new()
+
+  @new_500_words @top500_path
+                 |> File.read!()
+                 |> String.split("\n", trim: true)
+                 |> Enum.map(fn line ->
+                   case String.split(line, ". ", parts: 2) do
+                     [_, word] -> word |> String.trim() |> String.downcase()
+                     _ -> nil
+                   end
+                 end)
+                 |> Enum.reject(&is_nil/1)
+                 |> Enum.uniq()
+                 |> Enum.reject(&MapSet.member?(@existing_words, &1))
+
+  @purple_words Enum.filter(@new_500_words, fn w -> rem(:erlang.phash2(w), 2) == 0 end)
+  @orange_words Enum.filter(@new_500_words, fn w -> rem(:erlang.phash2(w), 2) == 1 end)
+
+  @word_lists Map.merge(@original_word_lists, %{
+                purple: @purple_words,
+                orange: @orange_words
+              })
 
   # Trophy definitions
   @trophies [

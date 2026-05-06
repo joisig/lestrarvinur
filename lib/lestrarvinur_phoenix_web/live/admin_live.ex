@@ -15,7 +15,9 @@ defmodule LestrarvinurPhoenixWeb.AdminLive do
             yellow: Constants.words_by_category(:yellow),
             blue: Constants.words_by_category(:blue),
             red: Constants.words_by_category(:red),
-            green: Constants.words_by_category(:green)
+            green: Constants.words_by_category(:green),
+            purple: Constants.words_by_category(:purple),
+            orange: Constants.words_by_category(:orange)
           }
 
           all_words = Enum.flat_map(word_lists, fn {_category, words} -> words end)
@@ -323,6 +325,8 @@ defmodule LestrarvinurPhoenixWeb.AdminLive do
   defp category_colors(:blue), do: "border-blue-400 bg-blue-50"
   defp category_colors(:red), do: "border-red-400 bg-red-50"
   defp category_colors(:green), do: "border-green-400 bg-green-50"
+  defp category_colors(:purple), do: "border-purple-400 bg-purple-50"
+  defp category_colors(:orange), do: "border-orange-400 bg-orange-50"
 
   # Not intended for use outside this module
   defp build_words_audio_map(words) do

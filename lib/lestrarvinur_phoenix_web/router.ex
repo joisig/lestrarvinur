@@ -22,6 +22,7 @@ defmodule LestrarvinurPhoenixWeb.Router do
     live "/game", GameLive
     live "/math-game", MathGameLive
     live "/dragon-test", DragonTestLive
+    live "/centipede-test", CentipedeTestLive
     live "/admin", AdminLive
   end
 

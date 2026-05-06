@@ -284,3 +284,50 @@ body > div[data-phx-main] {
 .explosion-inner {
   animation: explosion-pulse 0.2s ease-in-out infinite 0.1s;
 }
+
+/* Wrong answer shake for math multiple-choice buttons */
+@keyframes wrong-flash {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+
+.wrong-flash {
+  animation: wrong-flash 0.4s ease-in-out;
+}
+
+/* Centipede minigame.
+ * The outer .centipede-segment is positioned by JS each frame (transform
+ * carries x, y, rotation). The inner .centipede-segment-inner handles the
+ * pop animation so it doesn't fight the JS-driven outer transform. */
+.centipede-segment {
+  position: absolute;
+  top: 0;
+  left: 0;
+  opacity: 0;  /* JS sets opacity:1 when the segment enters the path */
+  will-change: transform, opacity;
+}
+
+.centipede-segment-inner {
+  display: inline-block;
+  transform-origin: center;
+  transition: transform 0.1s ease-out;
+}
+
+@keyframes centipede-pop {
+  0% { transform: scale(1) rotate(0deg); opacity: 1; }
+  40% { transform: scale(1.4) rotate(15deg); opacity: 1; }
+  100% { transform: scale(0) rotate(-25deg); opacity: 0; }
+}
+
+.centipede-popped .centipede-segment-inner {
+  animation: centipede-pop 0.55s ease-out forwards;
+  pointer-events: none;
+}
+
+/* When the kid hovers/touches a live segment, give a small lift cue. */
+.centipede-segment:not(.centipede-popped):active .centipede-segment-inner {
+  transform: scale(1.1);
+}

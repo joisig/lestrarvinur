@@ -127,7 +127,7 @@ defmodule LestrarvinurPhoenixWeb.DragonTestLive do
   # Generates test words by picking the longest words from all categories
   def generate_test_words(count) do
     all_words =
-      [:yellow, :blue, :red, :green]
+      [:yellow, :blue, :red, :green, :purple, :orange]
       |> Enum.flat_map(fn category ->
         Constants.words_by_category(category)
         |> Enum.map(fn word -> {word, category} end)
@@ -338,5 +338,7 @@ defmodule LestrarvinurPhoenixWeb.DragonTestLive do
   defp word_card_color(:blue), do: "border-4 border-blue-400"
   defp word_card_color(:red), do: "border-4 border-red-400"
   defp word_card_color(:green), do: "border-4 border-green-400"
+  defp word_card_color(:purple), do: "border-4 border-purple-400"
+  defp word_card_color(:orange), do: "border-4 border-orange-400"
   defp word_card_color(_), do: "border-4 border-yellow-400"
 end

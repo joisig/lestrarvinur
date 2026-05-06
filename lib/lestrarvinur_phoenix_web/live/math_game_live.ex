@@ -2,6 +2,7 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
   use LestrarvinurPhoenixWeb, :live_view
 
   alias LestrarvinurPhoenix.{Accounts, Accounts.User, MathConstants}
+  import LestrarvinurPhoenixWeb.CentipedeOverlay
 
   def mount(%{"username" => username}, _session, socket) do
     case Accounts.get_user(username) do
@@ -14,14 +15,19 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
 
         saved_sequence = User.decode_math_sequence(user)
 
+        valid_saved? =
+          saved_sequence != [] and user.math_current_index < length(saved_sequence) and
+            Enum.all?(saved_sequence, fn item -> is_list(Map.get(item, "choices")) end)
+
         {sequence, current_index} =
-          if saved_sequence != [] and user.math_current_index < length(saved_sequence) do
+          if valid_saved? do
             restored =
               Enum.map(saved_sequence, fn item ->
                 %{
                   question: item["question"],
                   answer: item["answer"],
-                  level: item["level"]
+                  level: item["level"],
+                  choices: item["choices"]
                 }
               end)
 
@@ -37,7 +43,12 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
 
             atom_sequence =
               Enum.map(new_sequence, fn item ->
-                %{question: item["question"], answer: item["answer"], level: item["level"]}
+                %{
+                  question: item["question"],
+                  answer: item["answer"],
+                  level: item["level"],
+                  choices: item["choices"]
+                }
               end)
 
             {atom_sequence, 0}
@@ -53,7 +64,7 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
          |> assign(:sequence, sequence)
          |> assign(:current_index, current_index)
          |> assign(:current_problem, current_problem)
-         |> assign(:showing_answer, false)
+         |> assign(:last_wrong_index, nil)
          |> assign(:session_count, 0)
          |> assign(:show_encouragement, false)
          |> assign(:encouragement_text, "")
@@ -73,7 +84,12 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
          |> assign(:dragon_health, 20)
          |> assign(:dragon_max_health, 20)
          |> assign(:dragon_exploding, false)
-         |> assign(:pending_trophy, nil)}
+         |> assign(:pending_trophy, nil)
+         # Centipede state
+         |> assign(:centipede_mode, false)
+         |> assign(:centipede_segments, [])
+         |> assign(:centipede_killed, 0)
+         |> assign(:centipede_total, 0)}
     end
   end
 
@@ -87,7 +103,7 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
 
   def handle_event("next", _params, socket) do
     cond do
-      socket.assigns.dragon_mode ->
+      socket.assigns.dragon_mode or socket.assigns.centipede_mode ->
         {:noreply, socket}
 
       socket.assigns.show_encouragement or socket.assigns.just_unlocked != nil or
@@ -98,12 +114,29 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
          |> assign(:just_unlocked, nil)
          |> assign(:level_up, nil)}
 
-      socket.assigns.showing_answer ->
-        handle_problem_completed(socket)
+      true ->
+        # No-op outside modal flows: the kid advances by tapping a correct choice.
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("choose", %{"index" => idx_str}, socket) do
+    cond do
+      socket.assigns.dragon_mode or socket.assigns.centipede_mode or
+        socket.assigns.show_encouragement or
+        socket.assigns.just_unlocked != nil or socket.assigns.level_up != nil ->
+        {:noreply, socket}
 
       true ->
-        # First tap: reveal answer
-        {:noreply, assign(socket, :showing_answer, true)}
+        idx = String.to_integer(idx_str)
+        chosen = Enum.at(socket.assigns.current_problem.choices, idx)
+
+        if chosen == socket.assigns.current_problem.answer do
+          handle_problem_completed(socket)
+        else
+          Process.send_after(self(), :clear_wrong, 600)
+          {:noreply, assign(socket, :last_wrong_index, idx)}
+        end
     end
   end
 
@@ -172,8 +205,24 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
     {:noreply, socket}
   end
 
+  def handle_event("centipede_kill", %{"id" => _id}, socket) do
+    {:noreply, register_centipede_done(socket)}
+  end
+
+  def handle_event("centipede_escape", %{"id" => _id}, socket) do
+    {:noreply, register_centipede_done(socket)}
+  end
+
+  def handle_event("skip_centipede_game", _params, socket) do
+    {:noreply, exit_centipede_mode(socket)}
+  end
+
   def handle_info({:clear_hit, _word_id}, socket) do
     {:noreply, assign(socket, :dragon_hit_active, false)}
+  end
+
+  def handle_info(:clear_wrong, socket) do
+    {:noreply, assign(socket, :last_wrong_index, nil)}
   end
 
   def handle_info(:next_dragon_word, socket) do
@@ -217,6 +266,10 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
       true ->
         {:noreply, socket}
     end
+  end
+
+  def handle_info(:centipede_done, socket) do
+    {:noreply, exit_centipede_mode(socket)}
   end
 
   def handle_info(:dragon_explosion_done, socket) do
@@ -282,37 +335,29 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
       |> assign(:level_counts, new_level_counts)
       |> assign(:highest_level, new_highest)
 
-    # Dragon game
+    # Milestone minigame: dragon (2/3) or centipede (1/3), unless the user has
+    # a forced game queued up (e.g. centipede on first run after the new game
+    # was added).
     socket =
       if dragon_milestone do
-        dragon_items =
-          recent
-          |> Enum.take(35)
-          |> Enum.shuffle()
-          |> Enum.with_index()
-          |> Enum.map(fn {p, idx} ->
-            %{id: "dw-#{idx}", word: "#{p.question} = #{p.answer}", category: level_to_category(p.level)}
-          end)
+        {game, updated_user} = pick_and_consume_milestone_game(updated_user)
+        socket = assign(socket, :user, updated_user)
 
-        {initial_visible, remaining} = Enum.split(dragon_items, 6)
-
-        socket
-        |> assign(:dragon_mode, true)
-        |> assign(:dragon_words_queue, remaining)
-        |> assign(:dragon_visible_words, initial_visible)
-        |> assign(:dragon_words_flung, 0)
-        |> assign(:dragon_total_words, length(dragon_items))
-        |> assign(:dragon_hit_active, false)
-        |> then(fn s ->
-          if newly_unlocked do
-            multiplier = if wrapped, do: cycle, else: cycle + 1
-
-            assign(s, :pending_trophy, newly_unlocked)
-            |> assign(:trophy_multiplier, multiplier)
-          else
-            s
+        socket =
+          case game do
+            :dragon -> setup_dragon_mode(socket, recent)
+            :centipede -> setup_centipede_mode(socket, recent)
           end
-        end)
+
+        if newly_unlocked do
+          multiplier = if wrapped, do: cycle, else: cycle + 1
+
+          socket
+          |> assign(:pending_trophy, newly_unlocked)
+          |> assign(:trophy_multiplier, multiplier)
+        else
+          socket
+        end
       else
         socket
         |> then(fn s ->
@@ -380,7 +425,7 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
      |> assign(:current_index, next_index)
      |> assign(:sequence, sequence)
      |> assign(:current_problem, Enum.at(sequence, next_index))
-     |> assign(:showing_answer, false)}
+     |> assign(:last_wrong_index, nil)}
   end
 
   # Map math levels to color categories for dragon game card borders
@@ -396,6 +441,99 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
   # Not intended for use outside this module
   def dragon_hit_sounds do
     ["KA-POW!", "BLAM!", "BONG!", "POW!", "THUD!", "RAT-TAT-TAT!", "BIFF!", "BONK!", "KA-RACK!"]
+  end
+
+  # Not intended for use outside this module
+  # Picks the next milestone minigame, respecting any forced choice on the user
+  # record (and clearing it). Defaults to dragon 2/3, centipede 1/3.
+  def pick_and_consume_milestone_game(user) do
+    case user.next_milestone_game do
+      forced when forced in ["dragon", "centipede"] ->
+        {:ok, cleared} = Accounts.update_user(user, %{next_milestone_game: ""})
+        {String.to_existing_atom(forced), cleared}
+
+      _ ->
+        game = Enum.random([:dragon, :dragon, :centipede])
+        {game, user}
+    end
+  end
+
+  # Not intended for use outside this module
+  def setup_dragon_mode(socket, recent_problems) do
+    dragon_items =
+      recent_problems
+      |> Enum.take(35)
+      |> Enum.shuffle()
+      |> Enum.with_index()
+      |> Enum.map(fn {p, idx} ->
+        %{
+          id: "dw-#{idx}",
+          word: "#{p.question} = #{p.answer}",
+          category: level_to_category(p.level)
+        }
+      end)
+
+    {initial_visible, remaining} = Enum.split(dragon_items, 6)
+
+    socket
+    |> assign(:dragon_mode, true)
+    |> assign(:dragon_words_queue, remaining)
+    |> assign(:dragon_visible_words, initial_visible)
+    |> assign(:dragon_words_flung, 0)
+    |> assign(:dragon_total_words, length(dragon_items))
+    |> assign(:dragon_hit_active, false)
+  end
+
+  # Not intended for use outside this module
+  def setup_centipede_mode(socket, recent_problems) do
+    segments =
+      recent_problems
+      |> Enum.shuffle()
+      |> Enum.take(25)
+      |> Enum.with_index()
+      |> Enum.map(fn {p, idx} ->
+        %{
+          id: "cs-#{idx}",
+          text: "#{p.question} = #{p.answer}",
+          category: level_to_category(p.level)
+        }
+      end)
+
+    socket
+    |> assign(:centipede_mode, true)
+    |> assign(:centipede_segments, segments)
+    |> assign(:centipede_killed, 0)
+    |> assign(:centipede_total, length(segments))
+  end
+
+  # Not intended for use outside this module
+  def register_centipede_done(socket) do
+    new_killed = socket.assigns.centipede_killed + 1
+    socket = assign(socket, :centipede_killed, new_killed)
+
+    if new_killed >= socket.assigns.centipede_total do
+      Process.send_after(self(), :centipede_done, 700)
+    end
+
+    socket
+  end
+
+  # Not intended for use outside this module
+  def exit_centipede_mode(socket) do
+    socket =
+      socket
+      |> assign(:centipede_mode, false)
+      |> assign(:centipede_segments, [])
+      |> assign(:centipede_killed, 0)
+      |> assign(:centipede_total, 0)
+
+    if socket.assigns.pending_trophy do
+      socket
+      |> assign(:just_unlocked, socket.assigns.pending_trophy)
+      |> assign(:pending_trophy, nil)
+    else
+      socket
+    end
   end
 
   def render(assigns) do
@@ -426,27 +564,29 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
       </div>
       <!-- Main Flash Card -->
       <div class="flex-1 flex flex-col items-center justify-center p-6">
-        <div class={"bg-white w-full max-w-sm aspect-[3/4] rounded-[3rem] shadow-2xl flex flex-col items-center justify-center relative border-8 #{level_border_color(@current_problem.level)} transform transition-all duration-300"}>
+        <div class={"bg-white w-full max-w-sm aspect-[3/4] rounded-[3rem] shadow-2xl flex flex-col relative border-8 #{level_border_color(@current_problem.level)} transform transition-all duration-300"}>
           <!-- Level label -->
-          <div class={"absolute top-8 text-sm font-black tracking-widest uppercase #{level_accent_color(@current_problem.level)}"}>
+          <div class={"absolute top-6 left-0 right-0 text-center text-sm font-black tracking-widest uppercase #{level_accent_color(@current_problem.level)}"}>
             {@level_def.name}
           </div>
           <!-- The problem -->
-          <h1 class="text-5xl md:text-6xl font-black text-slate-800 text-center select-none px-4">
-            <%= if @showing_answer do %>
-              {@current_problem.question} = {@current_problem.answer}
-            <% else %>
+          <div class="flex-1 flex items-center justify-center px-4 pt-12">
+            <h1 class="text-5xl md:text-6xl font-black text-slate-800 text-center select-none">
               {@current_problem.question} = ?
+            </h1>
+          </div>
+          <!-- Multiple-choice buttons -->
+          <div class="grid grid-cols-2 gap-3 p-5 pb-7">
+            <%= for {choice, idx} <- Enum.with_index(@current_problem.choices) do %>
+              <button
+                phx-click="choose"
+                phx-value-index={idx}
+                class={"py-5 rounded-2xl text-3xl md:text-4xl font-black shadow-md transition-all active:scale-95 select-none #{choice_button_class(idx, @last_wrong_index, @current_problem.level)}"}
+              >
+                {choice}
+              </button>
             <% end %>
-          </h1>
-
-          <p class="absolute bottom-8 text-slate-300 text-sm font-medium animate-pulse">
-            <%= if @showing_answer do %>
-              Ýttu til að halda áfram
-            <% else %>
-              Ýttu til að sjá svarið
-            <% end %>
-          </p>
+          </div>
         </div>
       </div>
       <!-- Progress Bar -->
@@ -519,6 +659,14 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
           health={@dragon_health}
           max_health={@dragon_max_health}
           exploding={@dragon_exploding}
+        />
+      <% end %>
+      <!-- Centipede Minigame Overlay -->
+      <%= if @centipede_mode do %>
+        <.centipede_overlay
+          segments={@centipede_segments}
+          killed={@centipede_killed}
+          total={@centipede_total}
         />
       <% end %>
     </div>
@@ -728,6 +876,32 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
   defp level_accent_color(level) when level in [9, 10], do: "text-purple-600"
   defp level_accent_color(level) when level in [11, 12], do: "text-rose-600"
   defp level_accent_color(_), do: "text-amber-600"
+
+  # Per-button styling. The wrong-flash class is applied only to the choice
+  # the kid just tapped if it was incorrect; everyone else gets the level-tinted
+  # default look.
+  defp choice_button_class(idx, idx, _level), do: "bg-red-200 text-red-800 wrong-flash"
+  defp choice_button_class(_idx, _wrong, level), do: choice_default_class(level)
+
+  defp choice_default_class(level) when level in [1, 2],
+    do: "bg-amber-100 text-amber-800 hover:bg-amber-200"
+
+  defp choice_default_class(level) when level in [3, 4],
+    do: "bg-blue-100 text-blue-800 hover:bg-blue-200"
+
+  defp choice_default_class(level) when level in [5, 6],
+    do: "bg-orange-100 text-orange-800 hover:bg-orange-200"
+
+  defp choice_default_class(level) when level in [7, 8],
+    do: "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+
+  defp choice_default_class(level) when level in [9, 10],
+    do: "bg-purple-100 text-purple-800 hover:bg-purple-200"
+
+  defp choice_default_class(level) when level in [11, 12],
+    do: "bg-rose-100 text-rose-800 hover:bg-rose-200"
+
+  defp choice_default_class(_), do: "bg-slate-100 text-slate-800 hover:bg-slate-200"
 
   # Trophy icon component (same as reading game)
   defp trophy_icon(assigns) do
