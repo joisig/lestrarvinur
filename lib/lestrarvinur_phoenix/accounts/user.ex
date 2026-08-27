@@ -20,7 +20,7 @@ defmodule LestrarvinurPhoenix.Accounts.User do
     # Forces the next milestone minigame ("centipede" or "dragon"); empty string
     # means random pick. Set to "centipede" for new users so they meet the new
     # game on their first milestone.
-    field :next_milestone_game, :string, default: "centipede"
+    field :next_milestone_game, :string, default: "pacman"
 
     # Virtual fields for password input
     field :password, :string, virtual: true

@@ -3,6 +3,8 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
 
   alias LestrarvinurPhoenix.{Accounts, Constants}
   import LestrarvinurPhoenixWeb.CentipedeOverlay
+  import LestrarvinurPhoenixWeb.PacmanOverlay, only: [pacman_overlay: 1]
+  import LestrarvinurPhoenixWeb.InvadersOverlay, only: [invaders_overlay: 1]
 
   def mount(%{"username" => username}, _session, socket) do
     case Accounts.get_user(username) do
@@ -69,7 +71,17 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
          |> assign(:centipede_mode, false)
          |> assign(:centipede_segments, [])
          |> assign(:centipede_killed, 0)
-         |> assign(:centipede_total, 0)}
+         |> assign(:centipede_total, 0)
+         # Pac-Man minigame state
+         |> assign(:pacman_mode, false)
+         |> assign(:pacman_items, [])
+         |> assign(:pacman_eaten, 0)
+         |> assign(:pacman_total, 0)
+         # Space Invaders minigame state
+         |> assign(:invaders_mode, false)
+         |> assign(:invaders_items, [])
+         |> assign(:invaders_shot, 0)
+         |> assign(:invaders_total, 0)}
     end
   end
 
@@ -83,7 +95,7 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
 
   def handle_event("next", _params, socket) do
     cond do
-      socket.assigns.dragon_mode or socket.assigns.centipede_mode ->
+      minigame_active?(socket) ->
         # Don't advance during minigames, clicks should be handled by the game
         {:noreply, socket}
 
@@ -189,6 +201,34 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
     {:noreply, exit_centipede_mode(socket)}
   end
 
+  def handle_event("pacman_eat", %{"id" => _id}, socket) do
+    {:noreply, register_pacman_eaten(socket)}
+  end
+
+  def handle_event("skip_pacman_game", _params, socket) do
+    {:noreply, exit_pacman_mode(socket)}
+  end
+
+  def handle_event("pacman_game_over", _params, socket) do
+    {:noreply, exit_pacman_mode(socket)}
+  end
+
+  def handle_event("pacman_cleared", _params, socket) do
+    {:noreply, exit_pacman_mode(socket)}
+  end
+
+  def handle_event("invaders_hit", %{"id" => _id}, socket) do
+    {:noreply, register_invader_shot(socket)}
+  end
+
+  def handle_event("skip_invaders_game", _params, socket) do
+    {:noreply, exit_invaders_mode(socket)}
+  end
+
+  def handle_event("invaders_game_over", _params, socket) do
+    {:noreply, exit_invaders_mode(socket)}
+  end
+
   def handle_info({:clear_hit, _word_id}, socket) do
     {:noreply, assign(socket, :dragon_hit_active, false)}
   end
@@ -241,6 +281,10 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
 
   def handle_info(:centipede_done, socket) do
     {:noreply, exit_centipede_mode(socket)}
+  end
+
+  def handle_info(:invaders_done, socket) do
+    {:noreply, exit_invaders_mode(socket)}
   end
 
   def handle_info(:dragon_explosion_done, socket) do
@@ -318,6 +362,8 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
           case game do
             :dragon -> setup_dragon_mode(socket, recent_words)
             :centipede -> setup_centipede_mode(socket, recent_words)
+            :pacman -> setup_pacman_mode(socket, recent_words)
+            :invaders -> setup_invaders_mode(socket, recent_words)
           end
 
         if newly_unlocked do
@@ -404,19 +450,27 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
 
   # Not intended for use outside this module
   # Decides which minigame the next milestone shows. If the user has a forced
-  # `next_milestone_game` (e.g. set to "centipede" so the kid sees the new game
+  # `next_milestone_game` (e.g. set to "pacman" so the kid sees the new game
   # next time they hit a milestone), respect that and clear it. Otherwise pick
-  # randomly with dragon weighted 2/3 and centipede 1/3.
+  # uniformly among all minigames.
   def pick_and_consume_milestone_game(user) do
     case user.next_milestone_game do
-      forced when forced in ["dragon", "centipede"] ->
-        {:ok, cleared} = Accounts.update_user(user, %{next_milestone_game: ""})
+      forced when forced in ["dragon", "centipede", "pacman", "invaders"] ->
+        {:ok, cleared} = Accounts.clear_next_milestone_game(user)
         {String.to_existing_atom(forced), cleared}
 
       _ ->
-        game = Enum.random([:dragon, :dragon, :centipede])
+        game = Enum.random([:dragon, :centipede, :pacman, :invaders])
         {game, user}
     end
+  end
+
+  # Not intended for use outside this module
+  # True while any milestone minigame overlay is up; used to keep flashcard
+  # taps from leaking through the overlays.
+  def minigame_active?(socket) do
+    socket.assigns.dragon_mode or socket.assigns.centipede_mode or
+      socket.assigns.pacman_mode or socket.assigns.invaders_mode
   end
 
   # Not intended for use outside this module
@@ -481,6 +535,13 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
       |> assign(:centipede_killed, 0)
       |> assign(:centipede_total, 0)
 
+    release_pending_trophy(socket)
+  end
+
+  # Not intended for use outside this module
+  # After a minigame closes, promote any trophy queued during the milestone so
+  # its modal shows. Every exit_*_mode function must end with this.
+  def release_pending_trophy(socket) do
     if socket.assigns.pending_trophy do
       socket
       |> assign(:just_unlocked, socket.assigns.pending_trophy)
@@ -488,6 +549,90 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
     else
       socket
     end
+  end
+
+  # Not intended for use outside this module
+  # Single words only — phrases are too wide for the maze capsules.
+  def setup_pacman_mode(socket, recent_words) do
+    items =
+      recent_words
+      |> Enum.reject(fn w -> Constants.phrase?(w.word) end)
+      |> Enum.shuffle()
+      |> Enum.take(12)
+      |> Enum.with_index()
+      |> Enum.map(fn {w, idx} -> %{id: "pw-#{idx}", text: w.word, category: w.category} end)
+
+    socket
+    |> assign(:pacman_mode, true)
+    |> assign(:pacman_items, items)
+    |> assign(:pacman_eaten, 0)
+    |> assign(:pacman_total, length(items))
+  end
+
+  # Not intended for use outside this module
+  # Only advances the counter display. Completion is client-driven (the
+  # "pacman_cleared" event) because the plain dots, which must also all be
+  # eaten, exist only client-side.
+  def register_pacman_eaten(socket) do
+    if socket.assigns.pacman_mode do
+      assign(socket, :pacman_eaten, socket.assigns.pacman_eaten + 1)
+    else
+      socket
+    end
+  end
+
+  # Not intended for use outside this module
+  def exit_pacman_mode(socket) do
+    socket
+    |> assign(:pacman_mode, false)
+    |> assign(:pacman_items, [])
+    |> assign(:pacman_eaten, 0)
+    |> assign(:pacman_total, 0)
+    |> release_pending_trophy()
+  end
+
+  # Not intended for use outside this module
+  # Single words only — phrases are too wide for the invader capsules.
+  def setup_invaders_mode(socket, recent_words) do
+    items =
+      recent_words
+      |> Enum.reject(fn w -> Constants.phrase?(w.word) end)
+      |> Enum.shuffle()
+      |> Enum.take(18)
+      |> Enum.with_index()
+      |> Enum.map(fn {w, idx} -> %{id: "iw-#{idx}", text: w.word, category: w.category} end)
+
+    socket
+    |> assign(:invaders_mode, true)
+    |> assign(:invaders_items, items)
+    |> assign(:invaders_shot, 0)
+    |> assign(:invaders_total, length(items))
+  end
+
+  # Not intended for use outside this module
+  def register_invader_shot(socket) do
+    if socket.assigns.invaders_mode do
+      shot = socket.assigns.invaders_shot + 1
+
+      if shot >= socket.assigns.invaders_total do
+        # Give the "Vel gert!" banner a moment before closing the overlay
+        Process.send_after(self(), :invaders_done, 1800)
+      end
+
+      assign(socket, :invaders_shot, shot)
+    else
+      socket
+    end
+  end
+
+  # Not intended for use outside this module
+  def exit_invaders_mode(socket) do
+    socket
+    |> assign(:invaders_mode, false)
+    |> assign(:invaders_items, [])
+    |> assign(:invaders_shot, 0)
+    |> assign(:invaders_total, 0)
+    |> release_pending_trophy()
   end
 
   # Not intended for use outside this module
@@ -662,6 +807,22 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
           total={@centipede_total}
         />
       <% end %>
+      <!-- Pac-Man Minigame Overlay -->
+      <%= if @pacman_mode do %>
+        <.pacman_overlay items={@pacman_items} eaten={@pacman_eaten} total={@pacman_total} />
+      <% end %>
+      <!-- Space Invaders Minigame Overlay -->
+      <%= if @invaders_mode do %>
+        <.invaders_overlay items={@invaders_items} shot={@invaders_shot} total={@invaders_total} />
+      <% end %>
+      <!-- Warm the Phaser cache while the kid does flashcards -->
+      <div
+        id="phaser-preload"
+        phx-hook="PhaserPreload"
+        data-phaser-src={~p"/vendor/phaser.min.js"}
+        class="hidden"
+      >
+      </div>
     </div>
     """
   end

@@ -60,6 +60,17 @@ defmodule LestrarvinurPhoenix.Accounts do
   end
 
   @doc """
+  Clears the forced next-milestone minigame so the rotation goes back to
+  random. Uses `Ecto.Changeset.change/2` because `cast/3` treats `""` as an
+  empty value and silently drops it, leaving the forced game stuck.
+  """
+  def clear_next_milestone_game(user) do
+    user
+    |> Ecto.Changeset.change(next_milestone_game: "")
+    |> Repo.update()
+  end
+
+  @doc """
   Increments total words read by 1.
   """
   def increment_words_read(user) do
