@@ -73,13 +73,26 @@ defmodule LestrarvinurPhoenixWeb.MinigameMilestoneTest do
       refute html =~ "invaders-game"
     end
 
-    test "forced game choice is consumed after the milestone", %{conn: conn} do
+    test "milestones alternate between pacman and invaders", %{conn: conn} do
       user = milestone_user("pacman", %{total_words_read: 99})
 
       {:ok, view, _html} = live(conn, ~p"/game?username=#{user.username}")
-      render_click(view, "next", %{})
+      assert render_click(view, "next", %{}) =~ "pacman-game"
+      assert Accounts.get_user(user.username).next_milestone_game == "invaders"
 
-      assert Accounts.get_user(user.username).next_milestone_game == ""
+      user = milestone_user("invaders", %{total_words_read: 99})
+
+      {:ok, view, _html} = live(conn, ~p"/game?username=#{user.username}")
+      assert render_click(view, "next", %{}) =~ "invaders-game"
+      assert Accounts.get_user(user.username).next_milestone_game == "pacman"
+    end
+
+    test "legacy next_milestone_game values map to pacman", %{conn: conn} do
+      user = milestone_user("centipede", %{total_words_read: 99})
+
+      {:ok, view, _html} = live(conn, ~p"/game?username=#{user.username}")
+      assert render_click(view, "next", %{}) =~ "pacman-game"
+      assert Accounts.get_user(user.username).next_milestone_game == "invaders"
     end
   end
 

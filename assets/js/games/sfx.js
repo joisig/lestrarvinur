@@ -2,31 +2,130 @@
 // generated with the Web Audio API — no audio files, so the app stays fully
 // offline-capable and the 8-bit arcade character comes for free.
 //
-// iOS/iPad only allows audio after a user gesture: call `unlock()` from a
-// pointerdown/keydown handler (it is idempotent and cheap). Every play_*
-// function is a no-op until the context is unlocked and running.
+// iOS/iPad needs special care (Mac/desktop browsers need none of this):
+// - Audio is only allowed after a user gesture, and WebKit is picky about
+//   which events count. We therefore prefer to ride on Phaser's own
+//   AudioContext (attach/1), whose unlock machinery is battle-tested on iOS,
+//   and keep our own unlock() as a fallback wired to touchend/pointerup/
+//   click/keydown.
+// - Besides "suspended", iOS contexts can sit in a non-standard
+//   "interrupted" state; anything that isn't "running" gets a resume().
+// - The silent-mode switch mutes the Web Audio API (though not <audio>
+//   media playback). Looping a silent <audio> element flips the audio
+//   session to media-playback category so Web Audio plays regardless —
+//   the "unmute" trick.
+// Every play_* function is a no-op until a context is unlocked and running.
 
 let ctx = null
+let ownCtx = false // whether we created ctx (vs. adopted Phaser's)
 let master = null
+let unmuteAudio = null
+let unlockCount = 0
+
+// 50ms of silence as a WAV data URI, for the silent-mode bypass above.
+const SILENT_WAV =
+  "data:audio/wav;base64,UklGRkQDAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YSADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
 
 export function unlock() {
+  unlockCount += 1
   if (!ctx) {
     const AudioCtx = window.AudioContext || window.webkitAudioContext
     if (!AudioCtx) return
-    ctx = new AudioCtx()
-    // Compressor keeps overlapping effects (auto-fire + explosions) from clipping.
-    const compressor = ctx.createDynamicsCompressor()
-    master = ctx.createGain()
-    master.gain.value = 0.35
-    master.connect(compressor)
-    compressor.connect(ctx.destination)
+    adoptContext(new AudioCtx(), true)
   }
-  if (ctx.state === "suspended") ctx.resume().catch(() => {})
+  resumeIfNeeded()
+
+  // Play a one-sample silent buffer inside the gesture — the belt-and-braces
+  // iOS unlock that some WebKit versions require beyond resume().
+  try {
+    const buffer = ctx.createBuffer(1, 1, 22050)
+    const src = ctx.createBufferSource()
+    src.buffer = buffer
+    src.connect(ctx.destination)
+    src.start(0)
+  } catch (e) {
+    // Context may be closed; the next attach()/unlock() rebuilds it.
+  }
+
+  if (!unmuteAudio) {
+    unmuteAudio = new Audio(SILENT_WAV)
+    unmuteAudio.loop = true
+  }
+  if (unmuteAudio.paused) unmuteAudio.play().catch(() => {})
+}
+
+// Adopt the Phaser sound manager's AudioContext (call from a scene's
+// create()). Phaser's unlock handling is the most reliable on iOS, so when
+// it has a Web Audio context we play through that instead of our own.
+export function attach(soundManager) {
+  const phaserCtx = soundManager && soundManager.context
+  if (!phaserCtx || phaserCtx === ctx || phaserCtx.state === "closed") return
+  adoptContext(phaserCtx, false)
+}
+
+// Not exported — switch to a context and rebuild the output chain on it.
+// The compressor keeps overlapping effects (auto-fire + explosions) from
+// clipping.
+function adoptContext(newCtx, own) {
+  if (ctx && ownCtx && ctx !== newCtx) {
+    // Close abandoned own contexts: iOS caps concurrent AudioContexts.
+    try {
+      ctx.close()
+    } catch (e) {
+      // Already closed.
+    }
+  }
+  ctx = newCtx
+  ownCtx = own
+  const compressor = ctx.createDynamicsCompressor()
+  master = ctx.createGain()
+  master.gain.value = 0.35
+  master.connect(compressor)
+  compressor.connect(ctx.destination)
+}
+
+// Not exported — iOS contexts can be "suspended" or (non-standard)
+// "interrupted"; resume anything that is not running.
+function resumeIfNeeded() {
+  if (ctx && ctx.state !== "running") {
+    try {
+      ctx.resume().catch(() => {})
+    } catch (e) {
+      // Closed context; rebuilt on next attach()/unlock().
+    }
+  }
+}
+
+// Stop the silent-mode-bypass loop and drop the context. Call when a game
+// overlay is torn down so the page doesn't hold the audio session open.
+// Phaser-owned contexts are closed by the game's own destroy; ours we close.
+export function suspend() {
+  if (unmuteAudio && !unmuteAudio.paused) unmuteAudio.pause()
+  if (ctx && ownCtx) {
+    try {
+      ctx.close()
+    } catch (e) {
+      // Already closed.
+    }
+  }
+  ctx = null
+  master = null
+}
+
+// State snapshot for the ?sfxdebug=1 overlay (see shared.js).
+export function debugInfo() {
+  return {
+    ctx: ctx ? `${ownCtx ? "own" : "phaser"}:${ctx.state}` : "none",
+    sampleRate: ctx ? ctx.sampleRate : 0,
+    unlocks: unlockCount,
+    unmute: unmuteAudio ? (unmuteAudio.paused ? "paused" : "looping") : "none"
+  }
 }
 
 // Not exported — true when it is safe to schedule sounds.
 function ready() {
-  return ctx && ctx.state === "running"
+  if (ctx && ctx.state !== "running") resumeIfNeeded()
+  return ctx && master && ctx.state === "running"
 }
 
 // Not exported — one oscillator with a pitch sweep and exponential fade-out.

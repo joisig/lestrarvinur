@@ -109,7 +109,11 @@ iPad landscape is the primary device; the other two are sanity checks.
 | Invaders harness | `/invaders-test` (`?mode=math`) | Phaser; canvas at `#invaders-arena canvas`; auto-fires, so its counter climbing with zero input is a free smoke check |
 
 Phaser pages: wait for the canvas selector, then ~2s for the scene to draw
-before screenshotting. `--disable-gpu` in the launch args is REQUIRED for
+before screenshotting. The games boot PAUSED behind a start button — click
+`[data-game-start]` before simulating any gameplay, or nothing will move
+(the button click is also what unlocks audio on iOS, where only a clean
+tap counts as a user gesture, not a drag). Add `?sfxdebug=1` to a game URL
+for an on-screen AudioContext state readout (`#sfx-debug`). `--disable-gpu` in the launch args is REQUIRED for
 them: without it, headless Chromium on this Mac creates a WebGL context whose
 framebuffer is unsupported (console warns "Framebuffer status: Framebuffer
 Unsupported") and Phaser silently draws into a black canvas. Disabling the

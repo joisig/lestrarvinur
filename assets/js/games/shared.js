@@ -58,6 +58,34 @@ export function categoryColor(category) {
 
 export const GAME_FONT = "'Nunito', ui-rounded, 'Arial Rounded MT Bold', system-ui, sans-serif"
 
+// Audio troubleshooting overlay: add ?sfxdebug=1 to a game URL to see the
+// live AudioContext state on screen (for debugging sound on the iPad, where
+// there is no console). Returns a cleanup function, or null when inactive.
+import * as sfx from "./sfx"
+
+export function installSfxDebug(_el) {
+  if (!window.location.search.includes("sfxdebug")) return null
+  const div = document.createElement("div")
+  div.id = "sfx-debug"
+  div.style.cssText =
+    "position:fixed;top:76px;left:8px;z-index:9999;background:rgba(0,0,0,.75);" +
+    "color:#4ade80;font:13px ui-monospace,monospace;padding:8px 10px;" +
+    "border-radius:8px;pointer-events:none;white-space:pre"
+  // On document.body, NOT inside the hook element — LiveView patches would
+  // remove an unknown child from the overlay on the next render.
+  document.body.appendChild(div)
+  const timer = setInterval(() => {
+    const info = sfx.debugInfo()
+    div.textContent = Object.entries(info)
+      .map(([k, v]) => `${k}: ${v}`)
+      .join("\n")
+  }, 400)
+  return () => {
+    clearInterval(timer)
+    div.remove()
+  }
+}
+
 // Preload hook: warms the browser cache with the Phaser script while the kid
 // is doing flashcards, so the first milestone minigame starts instantly.
 export const PhaserPreload = {

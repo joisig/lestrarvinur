@@ -469,20 +469,16 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
   end
 
   # Not intended for use outside this module
-  # Decides which minigame the next milestone shows. If the user has a forced
-  # `next_milestone_game` (e.g. set to "pacman" so the kid sees the new game
-  # next time they hit a milestone), respect that and clear it. Otherwise pick
-  # uniformly among all minigames.
+  # For now the milestone rotation strictly alternates between the two Phaser
+  # games: whatever `next_milestone_game` holds runs now, and the other one is
+  # stored for the next milestone. Legacy values ("", "dragon", "centipede")
+  # map to pacman. The dragon/centipede code stays around so they can rejoin
+  # the rotation later.
   def pick_and_consume_milestone_game(user) do
-    case user.next_milestone_game do
-      forced when forced in ["dragon", "centipede", "pacman", "invaders"] ->
-        {:ok, cleared} = Accounts.clear_next_milestone_game(user)
-        {String.to_existing_atom(forced), cleared}
-
-      _ ->
-        game = Enum.random([:dragon, :centipede, :pacman, :invaders])
-        {game, user}
-    end
+    game = if user.next_milestone_game == "invaders", do: :invaders, else: :pacman
+    next_game = if game == :invaders, do: "pacman", else: "invaders"
+    {:ok, updated} = Accounts.update_user(user, %{next_milestone_game: next_game})
+    {game, updated}
   end
 
   # Not intended for use outside this module

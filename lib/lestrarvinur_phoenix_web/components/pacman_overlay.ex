@@ -37,8 +37,20 @@ defmodule LestrarvinurPhoenixWeb.PacmanOverlay do
       </div>
 
       <%!-- phx-update="ignore" keeps LiveView away from the Phaser-managed
-           canvas when the eaten counter re-renders. --%>
-      <div data-game-arena phx-update="ignore" id="pacman-arena" class="absolute inset-0"></div>
+           canvas when the eaten counter re-renders. The start button lives in
+           here too so LiveView cannot resurrect it after JS hides it; the
+           game boots paused and its click unlocks audio (iOS only counts a
+           clean tap, not a drag) and starts play. --%>
+      <div data-game-arena phx-update="ignore" id="pacman-arena" class="absolute inset-0">
+        <div class="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+          <button
+            data-game-start
+            class="pointer-events-auto bg-yellow-400 text-yellow-950 text-5xl font-black rounded-full px-16 py-8 shadow-2xl active:scale-95 transition-transform"
+          >
+            ▶ Byrja!
+          </button>
+        </div>
+      </div>
 
       <div class="absolute bottom-4 left-0 right-0 text-center text-white/70 text-sm pointer-events-none z-30">
         {@prompt} Strjúktu til að stýra!

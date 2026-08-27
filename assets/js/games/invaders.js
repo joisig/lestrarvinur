@@ -12,7 +12,7 @@
 //   - the server counts and closes the overlay once all are down
 //   - pushes "invaders_game_over" {} after the Game Over screen has shown
 //   - skip button is server-side (skip_invaders_game), outside the canvas
-import {loadPhaser, parseItems, categoryColor, GAME_FONT} from "./shared"
+import {loadPhaser, parseItems, categoryColor, installSfxDebug, GAME_FONT} from "./shared"
 import * as sfx from "./sfx"
 
 const WIDTH = 1440
@@ -31,10 +31,28 @@ const EXTRA_LIVES = 3 // spare lives on top of the one in play
 export const InvadersGame = {
   mounted() {
     this.dead = false
-    // iOS only allows audio after a user gesture; unlock() is idempotent.
-    this.unlockAudio = () => sfx.unlock()
-    this.el.addEventListener("pointerdown", this.unlockAudio)
-    window.addEventListener("keydown", this.unlockAudio)
+    this.sfxDebugCleanup = installSfxDebug(this.el)
+
+    // The game boots paused behind a big Start button. Its click is a clean
+    // tap — the only gesture iOS counts for unlocking audio (drags, which
+    // all the gameplay input is, do not qualify).
+    this.gameStarted = false
+    this.startBtn = this.el.querySelector("[data-game-start]")
+    this.onStart = () => {
+      if (this.gameStarted) return
+      sfx.unlock()
+      this.gameStarted = true
+      if (this.startBtn) this.startBtn.style.display = "none"
+      if (this.game) this.game.scene.resume("default")
+    }
+    if (this.startBtn) this.startBtn.addEventListener("click", this.onStart)
+    // Desktop convenience: any key starts too (arrows are the controls).
+    this.onKeydown = () => {
+      sfx.unlock()
+      this.onStart()
+    }
+    window.addEventListener("keydown", this.onKeydown)
+
     const items = parseItems(this.el)
     loadPhaser(this.el.dataset.phaserSrc)
       .then((Phaser) => {
@@ -46,8 +64,10 @@ export const InvadersGame = {
 
   destroyed() {
     this.dead = true
-    this.el.removeEventListener("pointerdown", this.unlockAudio)
-    window.removeEventListener("keydown", this.unlockAudio)
+    if (this.startBtn) this.startBtn.removeEventListener("click", this.onStart)
+    window.removeEventListener("keydown", this.onKeydown)
+    if (this.sfxDebugCleanup) this.sfxDebugCleanup()
+    sfx.suspend()
     if (this.game) {
       this.game.destroy(true)
       this.game = null
@@ -79,6 +99,11 @@ function createGame(Phaser, hook, items) {
 
   function create() {
     scene = this
+    // Ride Phaser's AudioContext: its unlock handling works for taps on the
+    // canvas, which iOS refuses to count for a context of our own (Phaser
+    // preventDefaults canvas touches, voiding the gesture for WebKit).
+    sfx.attach(scene.sound)
+    if (!hook.gameStarted) scene.scene.pause()
     drawStars(scene)
     spawnInvaders(scene)
     pickBombers(scene)
