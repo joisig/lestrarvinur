@@ -1,6 +1,6 @@
 defmodule LestrarvinurPhoenix.MathConstants do
   @moduledoc """
-  Math flash card game constants: 12 difficulty levels, problem generators,
+  Math flash card game constants: 16 difficulty levels, problem generators,
   weighted distribution, trophies, and encouragement messages.
   """
 
@@ -9,18 +9,34 @@ defmodule LestrarvinurPhoenix.MathConstants do
   @prestige_threshold 2_000
 
   @levels [
-    %{id: 1, name: "Samlagning upp að 10", color: "#fbbf24", op: :add, grade: 1},
-    %{id: 2, name: "Frádráttur frá 10", color: "#34d399", op: :sub, grade: 1},
-    %{id: 3, name: "Samlagning upp að 20", color: "#60a5fa", op: :add, grade: 1},
-    %{id: 4, name: "Frádráttur frá 20", color: "#f472b6", op: :sub, grade: 1},
-    %{id: 5, name: "Tugir: samlagning", color: "#fb923c", op: :add, grade: 2},
-    %{id: 6, name: "Tugir: frádráttur", color: "#a78bfa", op: :sub, grade: 2},
-    %{id: 7, name: "Samlagning upp að 100", color: "#2dd4bf", op: :add, grade: 2},
-    %{id: 8, name: "Frádráttur innan 100", color: "#f87171", op: :sub, grade: 2},
-    %{id: 9, name: "Samlagning með yfirfærslu", color: "#818cf8", op: :add, grade: 2},
-    %{id: 10, name: "Frádráttur með lántöku", color: "#e879f9", op: :sub, grade: 2},
-    %{id: 11, name: "Margföldun: ×2, ×5, ×10", color: "#fcd34d", op: :mul, grade: 3},
-    %{id: 12, name: "Margföldun: ×3–×9", color: "#fb7185", op: :mul, grade: 3}
+    %{
+      id: 1,
+      name: "Samlagning upp að 10, önnur talan er 1",
+      color: "#a3e635",
+      op: :add,
+      grade: 1
+    },
+    %{
+      id: 2,
+      name: "Samlagning upp að 10, önnur talan er 2",
+      color: "#4ade80",
+      op: :add,
+      grade: 1
+    },
+    %{id: 3, name: "Frádráttur frá 10, drögum 1 frá", color: "#22d3ee", op: :sub, grade: 1},
+    %{id: 4, name: "Frádráttur frá 10, drögum 2 frá", color: "#38bdf8", op: :sub, grade: 1},
+    %{id: 5, name: "Samlagning upp að 10", color: "#fbbf24", op: :add, grade: 1},
+    %{id: 6, name: "Frádráttur frá 10", color: "#34d399", op: :sub, grade: 1},
+    %{id: 7, name: "Samlagning upp að 20", color: "#60a5fa", op: :add, grade: 1},
+    %{id: 8, name: "Frádráttur frá 20", color: "#f472b6", op: :sub, grade: 1},
+    %{id: 9, name: "Tugir: samlagning", color: "#fb923c", op: :add, grade: 2},
+    %{id: 10, name: "Tugir: frádráttur", color: "#a78bfa", op: :sub, grade: 2},
+    %{id: 11, name: "Samlagning upp að 100", color: "#2dd4bf", op: :add, grade: 2},
+    %{id: 12, name: "Frádráttur innan 100", color: "#f87171", op: :sub, grade: 2},
+    %{id: 13, name: "Samlagning með yfirfærslu", color: "#818cf8", op: :add, grade: 2},
+    %{id: 14, name: "Frádráttur með lántöku", color: "#e879f9", op: :sub, grade: 2},
+    %{id: 15, name: "Margföldun: ×2, ×5, ×10", color: "#fcd34d", op: :mul, grade: 3},
+    %{id: 16, name: "Margföldun: ×3–×9", color: "#fb7185", op: :mul, grade: 3}
   ]
 
   # Trophies — same structure as reading trophies, with "mt_" prefix
@@ -73,7 +89,7 @@ defmodule LestrarvinurPhoenix.MathConstants do
   end
 
   @doc """
-  Get level definition by ID (1-12).
+  Get level definition by ID (1-16).
   """
   def get_level(id) do
     Enum.find(@levels, fn l -> l.id == id end)
@@ -84,10 +100,10 @@ defmodule LestrarvinurPhoenix.MathConstants do
   Level N+1 unlocks when level N has >= 200 cards shown.
   """
   def highest_unlocked_level(level_counts) do
-    Enum.reduce_while(1..12, 1, fn level, acc ->
+    Enum.reduce_while(1..16, 1, fn level, acc ->
       count = Map.get(level_counts, level, 0)
 
-      if count >= @problems_to_unlock and level < 12 do
+      if count >= @problems_to_unlock and level < 16 do
         {:cont, level + 1}
       else
         {:halt, acc}
@@ -149,46 +165,72 @@ defmodule LestrarvinurPhoenix.MathConstants do
   Returns %{question: "3 + 4", answer: 7, level: 1, a: 3, b: 4, op: :add}
   """
   def generate_problem(1) do
-    a = Enum.random(0..10)
-    b = Enum.random(0..(10 - a))
+    # Addition up to 10, one of the numbers is 1
+    other = Enum.random(0..9)
+    {a, b} = if :rand.uniform() > 0.5, do: {other, 1}, else: {1, other}
     build_problem(:add, a, b, 1)
   end
 
   def generate_problem(2) do
-    a = Enum.random(1..10)
-    b = Enum.random(0..a)
-    build_problem(:sub, a, b, 2)
+    # Addition up to 10, one of the numbers is 2
+    other = Enum.random(0..8)
+    {a, b} = if :rand.uniform() > 0.5, do: {other, 2}, else: {2, other}
+    build_problem(:add, a, b, 2)
   end
 
   def generate_problem(3) do
-    # Sum up to 20, at least one number > 5
-    a = Enum.random(6..14)
-    b = Enum.random(1..min(20 - a, 14))
-    build_problem(:add, a, b, 3)
+    # Subtraction from up to 10, always subtract 1 (never negative)
+    a = Enum.random(1..10)
+    build_problem(:sub, a, 1, 3)
   end
 
   def generate_problem(4) do
-    # Subtract from numbers up to 20, result >= 0
-    a = Enum.random(11..20)
-    b = Enum.random(1..a)
-    build_problem(:sub, a, b, 4)
+    # Subtraction from up to 10, always subtract 2 (never negative)
+    a = Enum.random(2..10)
+    build_problem(:sub, a, 2, 4)
   end
 
   def generate_problem(5) do
-    # Tens: multiples of 10, sum <= 100
-    a = Enum.random(1..9) * 10
-    b = Enum.random(1..((100 - a) |> div(10))) * 10
+    a = Enum.random(0..10)
+    b = Enum.random(0..(10 - a))
     build_problem(:add, a, b, 5)
   end
 
   def generate_problem(6) do
-    # Tens: subtract multiples of 10
-    a = Enum.random(2..10) * 10
-    b = Enum.random(1..(div(a, 10) - 1)) * 10
+    a = Enum.random(1..10)
+    b = Enum.random(0..a)
     build_problem(:sub, a, b, 6)
   end
 
   def generate_problem(7) do
+    # Sum up to 20, at least one number > 5
+    a = Enum.random(6..14)
+    b = Enum.random(1..min(20 - a, 14))
+    build_problem(:add, a, b, 7)
+  end
+
+  def generate_problem(8) do
+    # Subtract from numbers up to 20, result >= 0
+    a = Enum.random(11..20)
+    b = Enum.random(1..a)
+    build_problem(:sub, a, b, 8)
+  end
+
+  def generate_problem(9) do
+    # Tens: multiples of 10, sum <= 100
+    a = Enum.random(1..9) * 10
+    b = Enum.random(1..((100 - a) |> div(10))) * 10
+    build_problem(:add, a, b, 9)
+  end
+
+  def generate_problem(10) do
+    # Tens: subtract multiples of 10
+    a = Enum.random(2..10) * 10
+    b = Enum.random(1..(div(a, 10) - 1)) * 10
+    build_problem(:sub, a, b, 10)
+  end
+
+  def generate_problem(11) do
     # Two-digit addition, no carry (units sum < 10, tens sum < 10)
     a_tens = Enum.random(1..5)
     b_tens = Enum.random(1..(8 - a_tens))
@@ -196,10 +238,10 @@ defmodule LestrarvinurPhoenix.MathConstants do
     b_ones = Enum.random(1..(9 - a_ones))
     a = a_tens * 10 + a_ones
     b = b_tens * 10 + b_ones
-    build_problem(:add, a, b, 7)
+    build_problem(:add, a, b, 11)
   end
 
-  def generate_problem(8) do
+  def generate_problem(12) do
     # Two-digit subtraction, no borrow (a_ones >= b_ones, a_tens >= b_tens)
     a_tens = Enum.random(3..8)
     b_tens = Enum.random(1..(a_tens - 1))
@@ -207,10 +249,10 @@ defmodule LestrarvinurPhoenix.MathConstants do
     b_ones = Enum.random(1..a_ones)
     a = a_tens * 10 + a_ones
     b = b_tens * 10 + b_ones
-    build_problem(:sub, a, b, 8)
+    build_problem(:sub, a, b, 12)
   end
 
-  def generate_problem(9) do
+  def generate_problem(13) do
     # Two-digit addition WITH carry (units sum >= 10)
     a_ones = Enum.random(3..9)
     b_ones = Enum.random((10 - a_ones + 1)..9)
@@ -218,10 +260,10 @@ defmodule LestrarvinurPhoenix.MathConstants do
     b_tens = Enum.random(1..(8 - a_tens))
     a = a_tens * 10 + a_ones
     b = b_tens * 10 + b_ones
-    build_problem(:add, a, b, 9)
+    build_problem(:add, a, b, 13)
   end
 
-  def generate_problem(10) do
+  def generate_problem(14) do
     # Two-digit subtraction WITH borrow (a_ones < b_ones)
     a_tens = Enum.random(3..9)
     a_ones = Enum.random(0..4)
@@ -229,25 +271,25 @@ defmodule LestrarvinurPhoenix.MathConstants do
     b_tens = Enum.random(1..(a_tens - 1))
     a = a_tens * 10 + a_ones
     b = b_tens * 10 + b_ones
-    build_problem(:sub, a, b, 10)
+    build_problem(:sub, a, b, 14)
   end
 
-  def generate_problem(11) do
+  def generate_problem(15) do
     # Multiplication: ×2, ×5, ×10
     factor = Enum.random([2, 5, 10])
     other = Enum.random(1..10)
 
     # Randomly swap order for variety
     {a, b} = if :rand.uniform() > 0.5, do: {other, factor}, else: {factor, other}
-    build_problem(:mul, a, b, 11)
+    build_problem(:mul, a, b, 15)
   end
 
-  def generate_problem(12) do
+  def generate_problem(16) do
     # Multiplication: ×3, ×4, ×6, ×7, ×8, ×9
     factor = Enum.random([3, 4, 6, 7, 8, 9])
     other = Enum.random(2..9)
     {a, b} = if :rand.uniform() > 0.5, do: {other, factor}, else: {factor, other}
-    build_problem(:mul, a, b, 12)
+    build_problem(:mul, a, b, 16)
   end
 
   # Not intended for use outside this module

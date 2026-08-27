@@ -430,12 +430,14 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
 
   # Map math levels to color categories for dragon game card borders
   # Not intended for use outside this module
-  def level_to_category(level) when level in [1, 2], do: :yellow
-  def level_to_category(level) when level in [3, 4], do: :blue
-  def level_to_category(level) when level in [5, 6], do: :red
-  def level_to_category(level) when level in [7, 8], do: :green
-  def level_to_category(level) when level in [9, 10], do: :purple
-  def level_to_category(level) when level in [11, 12], do: :orange
+  def level_to_category(level) when level in [1, 2], do: :lime
+  def level_to_category(level) when level in [3, 4], do: :cyan
+  def level_to_category(level) when level in [5, 6], do: :yellow
+  def level_to_category(level) when level in [7, 8], do: :blue
+  def level_to_category(level) when level in [9, 10], do: :red
+  def level_to_category(level) when level in [11, 12], do: :green
+  def level_to_category(level) when level in [13, 14], do: :purple
+  def level_to_category(level) when level in [15, 16], do: :orange
   def level_to_category(_), do: :yellow
 
   # Not intended for use outside this module
@@ -844,6 +846,8 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
     """
   end
 
+  defp dragon_card_color(:lime), do: "border-4 border-lime-400"
+  defp dragon_card_color(:cyan), do: "border-4 border-cyan-400"
   defp dragon_card_color(:yellow), do: "border-4 border-yellow-400"
   defp dragon_card_color(:blue), do: "border-4 border-blue-400"
   defp dragon_card_color(:red), do: "border-4 border-red-400"
@@ -853,28 +857,34 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
   defp dragon_card_color(_), do: "border-4 border-yellow-400"
 
   # Level-based colors for the flash card background
-  defp level_bg_color(level) when level in [1, 2], do: "bg-amber-50"
-  defp level_bg_color(level) when level in [3, 4], do: "bg-blue-50"
-  defp level_bg_color(level) when level in [5, 6], do: "bg-orange-50"
-  defp level_bg_color(level) when level in [7, 8], do: "bg-emerald-50"
-  defp level_bg_color(level) when level in [9, 10], do: "bg-purple-50"
-  defp level_bg_color(level) when level in [11, 12], do: "bg-rose-50"
+  defp level_bg_color(level) when level in [1, 2], do: "bg-lime-50"
+  defp level_bg_color(level) when level in [3, 4], do: "bg-cyan-50"
+  defp level_bg_color(level) when level in [5, 6], do: "bg-amber-50"
+  defp level_bg_color(level) when level in [7, 8], do: "bg-blue-50"
+  defp level_bg_color(level) when level in [9, 10], do: "bg-orange-50"
+  defp level_bg_color(level) when level in [11, 12], do: "bg-emerald-50"
+  defp level_bg_color(level) when level in [13, 14], do: "bg-purple-50"
+  defp level_bg_color(level) when level in [15, 16], do: "bg-rose-50"
   defp level_bg_color(_), do: "bg-amber-50"
 
-  defp level_border_color(level) when level in [1, 2], do: "border-amber-200"
-  defp level_border_color(level) when level in [3, 4], do: "border-blue-200"
-  defp level_border_color(level) when level in [5, 6], do: "border-orange-200"
-  defp level_border_color(level) when level in [7, 8], do: "border-emerald-200"
-  defp level_border_color(level) when level in [9, 10], do: "border-purple-200"
-  defp level_border_color(level) when level in [11, 12], do: "border-rose-200"
+  defp level_border_color(level) when level in [1, 2], do: "border-lime-200"
+  defp level_border_color(level) when level in [3, 4], do: "border-cyan-200"
+  defp level_border_color(level) when level in [5, 6], do: "border-amber-200"
+  defp level_border_color(level) when level in [7, 8], do: "border-blue-200"
+  defp level_border_color(level) when level in [9, 10], do: "border-orange-200"
+  defp level_border_color(level) when level in [11, 12], do: "border-emerald-200"
+  defp level_border_color(level) when level in [13, 14], do: "border-purple-200"
+  defp level_border_color(level) when level in [15, 16], do: "border-rose-200"
   defp level_border_color(_), do: "border-amber-200"
 
-  defp level_accent_color(level) when level in [1, 2], do: "text-amber-600"
-  defp level_accent_color(level) when level in [3, 4], do: "text-blue-600"
-  defp level_accent_color(level) when level in [5, 6], do: "text-orange-600"
-  defp level_accent_color(level) when level in [7, 8], do: "text-emerald-600"
-  defp level_accent_color(level) when level in [9, 10], do: "text-purple-600"
-  defp level_accent_color(level) when level in [11, 12], do: "text-rose-600"
+  defp level_accent_color(level) when level in [1, 2], do: "text-lime-600"
+  defp level_accent_color(level) when level in [3, 4], do: "text-cyan-600"
+  defp level_accent_color(level) when level in [5, 6], do: "text-amber-600"
+  defp level_accent_color(level) when level in [7, 8], do: "text-blue-600"
+  defp level_accent_color(level) when level in [9, 10], do: "text-orange-600"
+  defp level_accent_color(level) when level in [11, 12], do: "text-emerald-600"
+  defp level_accent_color(level) when level in [13, 14], do: "text-purple-600"
+  defp level_accent_color(level) when level in [15, 16], do: "text-rose-600"
   defp level_accent_color(_), do: "text-amber-600"
 
   # Per-button styling. The wrong-flash class is applied only to the choice
@@ -884,21 +894,27 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
   defp choice_button_class(_idx, _wrong, level), do: choice_default_class(level)
 
   defp choice_default_class(level) when level in [1, 2],
-    do: "bg-amber-100 text-amber-800 hover:bg-amber-200"
+    do: "bg-lime-100 text-lime-800 hover:bg-lime-200"
 
   defp choice_default_class(level) when level in [3, 4],
-    do: "bg-blue-100 text-blue-800 hover:bg-blue-200"
+    do: "bg-cyan-100 text-cyan-800 hover:bg-cyan-200"
 
   defp choice_default_class(level) when level in [5, 6],
-    do: "bg-orange-100 text-orange-800 hover:bg-orange-200"
+    do: "bg-amber-100 text-amber-800 hover:bg-amber-200"
 
   defp choice_default_class(level) when level in [7, 8],
-    do: "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+    do: "bg-blue-100 text-blue-800 hover:bg-blue-200"
 
   defp choice_default_class(level) when level in [9, 10],
-    do: "bg-purple-100 text-purple-800 hover:bg-purple-200"
+    do: "bg-orange-100 text-orange-800 hover:bg-orange-200"
 
   defp choice_default_class(level) when level in [11, 12],
+    do: "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"
+
+  defp choice_default_class(level) when level in [13, 14],
+    do: "bg-purple-100 text-purple-800 hover:bg-purple-200"
+
+  defp choice_default_class(level) when level in [15, 16],
     do: "bg-rose-100 text-rose-800 hover:bg-rose-200"
 
   defp choice_default_class(_), do: "bg-slate-100 text-slate-800 hover:bg-slate-200"

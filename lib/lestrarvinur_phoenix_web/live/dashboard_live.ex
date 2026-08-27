@@ -95,7 +95,9 @@ defmodule LestrarvinurPhoenixWeb.DashboardLive do
               <div class="text-4xl font-black tracking-tight my-1">
                 {@user.total_math_problems}
               </div>
-              <div class="text-xs opacity-75">Stig {@math_highest_level}/12</div>
+              <div class="text-xs opacity-75">
+                Stig {@math_highest_level}/{length(MathConstants.levels())}
+              </div>
             </div>
             <div class="absolute top-0 right-0 w-20 h-20 bg-white opacity-10 rounded-full -mr-6 -mt-6">
             </div>

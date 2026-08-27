@@ -34,7 +34,12 @@ defmodule LestrarvinurPhoenixWeb.CentipedeOverlay do
 
       <%!-- phx-update="ignore" keeps LiveView from resetting JS-managed inline
            styles (transform, opacity) when the kill counter re-renders. --%>
-      <div data-centipede-arena phx-update="ignore" id="centipede-arena" class="absolute inset-0 overflow-hidden">
+      <div
+        data-centipede-arena
+        phx-update="ignore"
+        id="centipede-arena"
+        class="absolute inset-0 overflow-hidden"
+      >
         <%= for seg <- @segments do %>
           <div id={seg.id} class="centipede-segment" data-segment-id={seg.id}>
             <div class={"centipede-segment-inner rounded-full px-4 py-2 shadow-lg select-none cursor-pointer text-base md:text-lg font-bold whitespace-nowrap #{seg_class(seg.category)}"}>
@@ -51,6 +56,8 @@ defmodule LestrarvinurPhoenixWeb.CentipedeOverlay do
     """
   end
 
+  defp seg_class(:lime), do: "bg-lime-200 text-lime-900 ring-2 ring-lime-400"
+  defp seg_class(:cyan), do: "bg-cyan-200 text-cyan-900 ring-2 ring-cyan-400"
   defp seg_class(:yellow), do: "bg-yellow-200 text-yellow-900 ring-2 ring-yellow-400"
   defp seg_class(:blue), do: "bg-blue-200 text-blue-900 ring-2 ring-blue-400"
   defp seg_class(:red), do: "bg-red-200 text-red-900 ring-2 ring-red-400"
