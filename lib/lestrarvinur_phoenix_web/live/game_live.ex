@@ -20,7 +20,10 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
             # Convert string keys back to atom keys for use in the LiveView
             restored_sequence =
               Enum.map(saved_sequence, fn item ->
-                %{word: item["word"], category: String.to_atom(item["category"])}
+                %{
+                  word: personalize_phrase(item["word"], user.username),
+                  category: String.to_atom(item["category"])
+                }
               end)
 
             {restored_sequence, user.current_word_index}
@@ -37,7 +40,10 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
             # Convert to atom keys for LiveView
             atom_sequence =
               Enum.map(new_sequence, fn item ->
-                %{word: item["word"], category: String.to_atom(item["category"])}
+                %{
+                  word: personalize_phrase(item["word"], user.username),
+                  category: String.to_atom(item["category"])
+                }
               end)
 
             {atom_sequence, 0}
@@ -422,7 +428,10 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
         # Convert to atom keys for LiveView
         atom_sequence =
           Enum.map(new_sequence, fn item ->
-            %{word: item["word"], category: String.to_atom(item["category"])}
+            %{
+              word: personalize_phrase(item["word"], updated_user.username),
+              category: String.to_atom(item["category"])
+            }
           end)
 
         {0, atom_sequence, user_with_new_sequence}
@@ -442,6 +451,17 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
      |> assign(:sequence, sequence)
      |> assign(:current_word, Enum.at(sequence, next_index))}
   end
+
+  # Not intended for use outside this module
+  # The phrasebook contains the placeholder phrase "Ég heiti Tómas"; swap the
+  # name for the logged-in kid's own so they read about themselves. Applied
+  # wherever a sequence is decoded or generated, so it covers saved sequences
+  # that still carry the placeholder.
+  def personalize_phrase("Ég heiti Tómas", username) do
+    "Ég heiti " <> String.capitalize(username)
+  end
+
+  def personalize_phrase(text, _username), do: text
 
   # Not intended for use outside this module
   def dragon_hit_sounds do
