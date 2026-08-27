@@ -24,9 +24,19 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/lestrarvinur_phoenix"
 import topbar from "../vendor/topbar"
+import {PhaserPreload} from "./games/shared"
+import {PacmanGame} from "./games/pacman"
+import {InvadersGame} from "./games/invaders"
 
 // Custom hooks for Lestrarvinur
 const Hooks = {}
+
+// Phaser-based minigames (see assets/js/games/). Phaser itself is loaded
+// lazily from /vendor/phaser.min.js; PhaserPreload warms the cache on the
+// practice pages so the first milestone game starts instantly.
+Hooks.PhaserPreload = PhaserPreload
+Hooks.PacmanGame = PacmanGame
+Hooks.InvadersGame = InvadersGame
 
 // Audio player hook for playing word audio
 Hooks.AudioPlayer = {
