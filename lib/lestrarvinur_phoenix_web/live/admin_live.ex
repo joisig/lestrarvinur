@@ -17,7 +17,8 @@ defmodule LestrarvinurPhoenixWeb.AdminLive do
             red: Constants.words_by_category(:red),
             green: Constants.words_by_category(:green),
             purple: Constants.words_by_category(:purple),
-            orange: Constants.words_by_category(:orange)
+            orange: Constants.words_by_category(:orange),
+            pink: Constants.words_by_category(:pink)
           }
 
           all_words = Enum.flat_map(word_lists, fn {_category, words} -> words end)

@@ -64,5 +64,6 @@ defmodule LestrarvinurPhoenixWeb.CentipedeOverlay do
   defp seg_class(:green), do: "bg-emerald-200 text-emerald-900 ring-2 ring-emerald-400"
   defp seg_class(:purple), do: "bg-purple-200 text-purple-900 ring-2 ring-purple-400"
   defp seg_class(:orange), do: "bg-orange-200 text-orange-900 ring-2 ring-orange-400"
+  defp seg_class(:pink), do: "bg-pink-200 text-pink-900 ring-2 ring-pink-400"
   defp seg_class(_), do: "bg-yellow-200 text-yellow-900 ring-2 ring-yellow-400"
 end

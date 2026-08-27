@@ -1,0 +1,216 @@
+# Tillögur að nýjum frösum og orðum fyrir lestrarleikinn.
+# Eitt atriði í hverri línu. Línur sem byrja á # eru fyrirsagnir/athugasemdir
+# og verða ekki lesnar inn í leikinn. Eyddu línum sem þú vilt sleppa,
+# bættu við að vild.
+
+# ===== FRASAR =====
+
+# Kveðjur
+Góðan daginn
+Gott kvöld
+Góða nótt
+Hæ
+Halló
+Bless
+Sjáumst
+Sjáumst á morgun
+Velkomin
+
+# Kurteisi
+Takk
+Takk fyrir
+Takk sömuleiðis
+Takk fyrir matinn
+Gjörðu svo vel
+Afsakið
+Fyrirgefðu
+Já takk
+Nei takk
+Verði þér að góðu
+Ekkert mál
+Allt í lagi
+
+# Spjall
+Hvað segirðu gott?
+Allt fínt, en þú?
+Hvað heitir þú?
+Ég heiti Tómas
+Hvað er klukkan?
+Ég veit ekki
+Ég skil
+Ég skil ekki
+Þetta reddast
+Ég kem af fjöllum
+Eins og vitleysingur
+
+# Spurningar og hjálp
+Hvar er klósettið?
+Hvar er mamma?
+Hvar er pabbi?
+Hvað kostar þetta?
+Talar þú ensku?
+Hjálp!
+Get ég fengið vatn?
+Má ég fara út að leika?
+Hvað er í matinn?
+Hvenær fer næsti strætó?
+
+# Á veitingastað
+Matseðilinn, takk
+Einn ís, takk
+Reikninginn, takk
+Skál!
+
+# Góðar óskir
+Til hamingju með afmælið
+Gleðileg jól
+Gleðilegt nýtt ár
+Góða ferð
+Gangi þér vel
+Gaman að sjá þig
+Ég elska þig
+
+# Um mig
+Ég er svangur
+Ég er svöng
+Ég er þreyttur
+Mér er kalt
+Mér er heitt
+Ég er glaður
+
+# ===== ORÐ =====
+# Athugið: orð sem eru nú þegar í leiknum (t.d. mamma, pabbi, hús, einn,
+# tveir, fimm, átta, tíu) hafa verið fjarlægð úr þessum lista.
+
+# Fjölskyldan
+amma
+afi
+systir
+bróðir
+frændi
+frænka
+fjölskylda
+
+# Dýr
+hundur
+köttur
+hestur
+kind
+kýr
+fugl
+fiskur
+mús
+björn
+dreki
+
+# Matur
+mjólk
+brauð
+ostur
+epli
+banani
+kjöt
+súpa
+ís
+pítsa
+vatn
+safi
+kaka
+nammi
+
+# Heima
+herbergi
+rúm
+borð
+stóll
+hurð
+gluggi
+eldhús
+bíll
+bók
+sími
+klósett
+
+# Skóli og leikur
+skóli
+kennari
+blýantur
+penni
+taska
+vinur
+vinkona
+leikur
+bolti
+
+# Líkaminn
+höfuð
+auga
+nef
+munnur
+hönd
+fótur
+tönn
+magi
+
+# Náttúra og veður
+sól
+tungl
+stjarna
+rigning
+snjór
+vindur
+fjall
+sjór
+tré
+blóm
+steinn
+læknir
+
+# Litir
+rauður
+blár
+gulur
+grænn
+svartur
+hvítur
+bleikur
+fjólublár
+appelsínugulur
+brúnn
+grár
+
+# Tölur
+þrír
+fjórir
+sex
+sjö
+níu
+
+# Tími
+dagur
+nótt
+morgunn
+kvöld
+vika
+sumar
+vetur
+vor
+haust
+
+# Lýsingarorð
+lítill
+lítil
+góður
+góð
+fallegur
+falleg
+hræddur
+hrædd
+kaldur
+köld
+heitur
+heit
+nýr
+ný
+gamall
+gömul

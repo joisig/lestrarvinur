@@ -491,15 +491,59 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
   end
 
   # Not intended for use outside this module
-  defp generate_game_sequence do
-    [:yellow, :red, :green, :blue, :purple, :orange]
-    |> Enum.flat_map(fn category ->
-      Constants.words_by_category(category)
-      |> Enum.shuffle()
-      |> Enum.map(fn word ->
-        %{"word" => word, "category" => Atom.to_string(category)}
+  # Builds the flashcard sequence: single words in curriculum order (category
+  # blocks, shuffled within each block) with phrases (2+ words, from any
+  # category) interleaved so roughly one in every 4-5 cards is a phrase.
+  def generate_game_sequence do
+    words =
+      [:yellow, :red, :green, :blue, :purple, :orange]
+      |> Enum.flat_map(fn category ->
+        Constants.words_by_category(category)
+        |> Enum.reject(&Constants.phrase?/1)
+        |> Enum.shuffle()
+        |> Enum.map(fn word ->
+          %{"word" => word, "category" => Atom.to_string(category)}
+        end)
       end)
-    end)
+
+    phrases =
+      [:yellow, :red, :green, :blue, :purple, :orange, :pink]
+      |> Enum.flat_map(fn category ->
+        Constants.words_by_category(category)
+        |> Enum.filter(&Constants.phrase?/1)
+        |> Enum.map(fn phrase ->
+          %{"word" => phrase, "category" => Atom.to_string(category)}
+        end)
+      end)
+
+    interleave_phrases(words, phrases)
+  end
+
+  # Not intended for use outside this module
+  # Inserts a phrase after every 3-4 words. The phrase pool is drawn from a
+  # shuffled queue that reshuffles when exhausted, so phrases repeat as needed
+  # without back-to-back duplicates within one pass.
+  def interleave_phrases(words, []), do: words
+
+  def interleave_phrases(words, phrase_pool) do
+    do_interleave(words, Enum.shuffle(phrase_pool), phrase_pool, [])
+  end
+
+  # Not intended for use outside this module
+  def do_interleave([], _queue, _pool, acc), do: Enum.reverse(acc)
+
+  def do_interleave(words, [], pool, acc) do
+    do_interleave(words, Enum.shuffle(pool), pool, acc)
+  end
+
+  def do_interleave(words, [phrase | queue], pool, acc) do
+    {chunk, rest} = Enum.split(words, Enum.random(3..4))
+    acc = [phrase | Enum.reverse(chunk, acc)]
+
+    case rest do
+      [] -> Enum.reverse(acc)
+      _ -> do_interleave(rest, queue, pool, acc)
+    end
   end
 
   def render(assigns) do
@@ -530,7 +574,7 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
             {Constants.color_name(@current_word.category)} listi
           </div>
           <!-- The Word -->
-          <h1 class="text-7xl md:text-8xl font-black text-slate-800 text-center select-none">
+          <h1 class={"#{word_font_class(@current_word.word)} font-black text-slate-800 text-center select-none px-4"}>
             {@current_word.word}
           </h1>
           <%!-- Audio Button (commented out for now, will use later) --
@@ -813,12 +857,26 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
   end
 
   # Color classes for word cards in dragon game
+  # Not intended for use outside this module
+  # Scales the flashcard font down for longer words and phrases so they fit.
+  def word_font_class(word) do
+    len = String.length(word)
+
+    cond do
+      len <= 8 -> "text-7xl md:text-8xl"
+      len <= 14 -> "text-5xl md:text-6xl"
+      len <= 22 -> "text-4xl md:text-5xl"
+      true -> "text-3xl md:text-4xl"
+    end
+  end
+
   defp word_card_color(:yellow), do: "border-4 border-yellow-400"
   defp word_card_color(:blue), do: "border-4 border-blue-400"
   defp word_card_color(:red), do: "border-4 border-red-400"
   defp word_card_color(:green), do: "border-4 border-green-400"
   defp word_card_color(:purple), do: "border-4 border-purple-400"
   defp word_card_color(:orange), do: "border-4 border-orange-400"
+  defp word_card_color(:pink), do: "border-4 border-pink-400"
   defp word_card_color(_), do: "border-4 border-yellow-400"
 
   # Background colors for list categories
@@ -828,6 +886,7 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
   defp bg_color(:green), do: "bg-green-50"
   defp bg_color(:purple), do: "bg-purple-50"
   defp bg_color(:orange), do: "bg-orange-50"
+  defp bg_color(:pink), do: "bg-pink-50"
   defp bg_color(_), do: "bg-yellow-50"
 
   # Border colors
@@ -837,6 +896,7 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
   defp border_color(:green), do: "border-green-200"
   defp border_color(:purple), do: "border-purple-200"
   defp border_color(:orange), do: "border-orange-200"
+  defp border_color(:pink), do: "border-pink-200"
   defp border_color(_), do: "border-yellow-200"
 
   # Accent colors
@@ -846,6 +906,7 @@ defmodule LestrarvinurPhoenixWeb.GameLive do
   defp accent_color(:green), do: "text-green-600"
   defp accent_color(:purple), do: "text-purple-600"
   defp accent_color(:orange), do: "text-orange-600"
+  defp accent_color(:pink), do: "text-pink-600"
   defp accent_color(_), do: "text-yellow-600"
 
   # Trophy icon component (reused from dashboard)

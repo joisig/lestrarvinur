@@ -10,7 +10,8 @@ defmodule LestrarvinurPhoenix.Constants do
     red: "Rauði",
     green: "Græni",
     purple: "Fjólublái",
-    orange: "Appelsínuguli"
+    orange: "Appelsínuguli",
+    pink: "Bleiki"
   }
 
   @original_word_lists %{
@@ -136,12 +137,37 @@ defmodule LestrarvinurPhoenix.Constants do
                  |> Enum.uniq()
                  |> Enum.reject(&MapSet.member?(@existing_words, &1))
 
-  @purple_words Enum.filter(@new_500_words, fn w -> rem(:erlang.phash2(w), 2) == 0 end)
-  @orange_words Enum.filter(@new_500_words, fn w -> rem(:erlang.phash2(w), 2) == 1 end)
+  # Read the phrasebook file (frasar_og_ord.txt) at compile time. Lines starting
+  # with # are headers/comments. Entries containing whitespace are phrases and
+  # become the pink list; single words are merged into the purple/orange split.
+  @frasar_path Path.expand("../../frasar_og_ord.txt", __DIR__)
+  @external_resource @frasar_path
+
+  @frasar_entries @frasar_path
+                  |> File.read!()
+                  |> String.split("\n", trim: true)
+                  |> Enum.map(&String.trim/1)
+                  |> Enum.reject(fn line -> line == "" or String.starts_with?(line, "#") end)
+                  |> Enum.uniq()
+
+  @phrase_list Enum.filter(@frasar_entries, &String.contains?(&1, " "))
+
+  @frasar_single_words @frasar_entries
+                       |> Enum.reject(&String.contains?(&1, " "))
+                       |> Enum.map(&String.downcase/1)
+                       |> Enum.uniq()
+                       |> Enum.reject(&MapSet.member?(@existing_words, &1))
+                       |> Enum.reject(&(&1 in @new_500_words))
+
+  @split_words @new_500_words ++ @frasar_single_words
+
+  @purple_words Enum.filter(@split_words, fn w -> rem(:erlang.phash2(w), 2) == 0 end)
+  @orange_words Enum.filter(@split_words, fn w -> rem(:erlang.phash2(w), 2) == 1 end)
 
   @word_lists Map.merge(@original_word_lists, %{
                 purple: @purple_words,
-                orange: @orange_words
+                orange: @orange_words,
+                pink: @phrase_list
               })
 
   # Trophy definitions
@@ -254,6 +280,11 @@ defmodule LestrarvinurPhoenix.Constants do
   def words_by_category(category) when is_atom(category) do
     Map.get(@word_lists, category, [])
   end
+
+  @doc """
+  True when an entry is a phrase (2+ words) rather than a single word.
+  """
+  def phrase?(entry), do: String.contains?(entry, " ")
 
   @doc """
   Get a trophy by ID.
