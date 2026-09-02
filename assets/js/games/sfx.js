@@ -238,6 +238,25 @@ export function shipHit() {
   tone({from: 400, to: 60, dur: 0.45, type: "sawtooth", vol: 0.3})
 }
 
+// --- Math flashcards ---
+
+// Bright ascending arpeggio when the kid picks the right answer.
+export function mathCorrect() {
+  if (!ready()) return
+  ;[523, 659, 784].forEach((f, i) => {
+    tone({from: f, to: f, dur: 0.12, type: "triangle", vol: 0.35, delay: i * 0.06})
+  })
+}
+
+// Gentle descending two-tone when the answer is wrong — clear "no" without
+// being harsh on a young player.
+export function mathWrong() {
+  if (!ready()) return
+  ;[349, 262].forEach((f, i) => {
+    tone({from: f, to: f * 0.9, dur: 0.22, type: "triangle", vol: 0.3, delay: i * 0.16})
+  })
+}
+
 // --- Shared endings ---
 
 export function win() {

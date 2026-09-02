@@ -136,7 +136,12 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
     cond do
       minigame_active?(socket) or
         socket.assigns.show_encouragement or
-        socket.assigns.just_unlocked != nil or socket.assigns.level_up != nil ->
+          socket.assigns.just_unlocked != nil or socket.assigns.level_up != nil ->
+        {:noreply, socket}
+
+      # A wrong answer is currently on-screen (red + green reveal). Ignore
+      # further taps until :advance_after_wrong fires.
+      socket.assigns.last_wrong_index != nil ->
         {:noreply, socket}
 
       true ->
@@ -144,10 +149,16 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
         chosen = Enum.at(socket.assigns.current_problem.choices, idx)
 
         if chosen == socket.assigns.current_problem.answer do
-          handle_problem_completed(socket)
+          socket
+          |> push_event("math-sound", %{type: "correct"})
+          |> handle_problem_completed()
         else
-          Process.send_after(self(), :clear_wrong, 600)
-          {:noreply, assign(socket, :last_wrong_index, idx)}
+          Process.send_after(self(), :advance_after_wrong, 2000)
+
+          {:noreply,
+           socket
+           |> assign(:last_wrong_index, idx)
+           |> push_event("math-sound", %{type: "wrong"})}
         end
     end
   end
@@ -261,8 +272,11 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
     {:noreply, assign(socket, :dragon_hit_active, false)}
   end
 
-  def handle_info(:clear_wrong, socket) do
-    {:noreply, assign(socket, :last_wrong_index, nil)}
+  # After a wrong answer has been visible (red on the tapped choice, green on
+  # the correct one) for 2 seconds, advance just like a correct answer would:
+  # wrong answers count toward the star counter, level unlocks and trophies.
+  def handle_info(:advance_after_wrong, socket) do
+    handle_problem_completed(socket)
   end
 
   def handle_info(:next_dragon_word, socket) do
@@ -691,10 +705,21 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
 
   def render(assigns) do
     level_def = MathConstants.get_level(assigns.current_problem.level)
-    assigns = assign(assigns, :level_def, level_def)
+
+    correct_idx =
+      Enum.find_index(assigns.current_problem.choices, fn c ->
+        c == assigns.current_problem.answer
+      end)
+
+    assigns =
+      assigns
+      |> assign(:level_def, level_def)
+      |> assign(:correct_idx, correct_idx)
 
     ~H"""
     <div
+      id="math-game"
+      phx-hook="MathSounds"
       phx-click="next"
       class={"h-full w-full flex flex-col relative transition-colors duration-500 ease-in-out #{level_bg_color(@current_problem.level)}"}
     >
@@ -734,7 +759,7 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
               <button
                 phx-click="choose"
                 phx-value-index={idx}
-                class={"py-5 rounded-2xl text-3xl md:text-4xl font-black shadow-md transition-all active:scale-95 select-none #{choice_button_class(idx, @last_wrong_index, @current_problem.level)}"}
+                class={"py-5 rounded-2xl text-3xl md:text-4xl font-black shadow-md transition-all active:scale-95 select-none #{choice_button_class(idx, @last_wrong_index, @correct_idx, @current_problem.level)}"}
               >
                 {choice}
               </button>
@@ -1064,11 +1089,19 @@ defmodule LestrarvinurPhoenixWeb.MathGameLive do
   defp level_accent_color(level) when level in [15, 16], do: "text-rose-600"
   defp level_accent_color(_), do: "text-amber-600"
 
-  # Per-button styling. The wrong-flash class is applied only to the choice
-  # the kid just tapped if it was incorrect; everyone else gets the level-tinted
-  # default look.
-  defp choice_button_class(idx, idx, _level), do: "bg-red-200 text-red-800 wrong-flash"
-  defp choice_button_class(_idx, _wrong, level), do: choice_default_class(level)
+  # Per-button styling during a reveal:
+  #   - the tapped-and-wrong choice flashes red (with a shake)
+  #   - the correct choice is highlighted green so the kid sees what the
+  #     right answer was before we auto-advance
+  # Outside a reveal the buttons use the level-tinted default look.
+  defp choice_button_class(idx, wrong_idx, _correct_idx, _level) when idx == wrong_idx,
+    do: "bg-red-200 text-red-800 wrong-flash"
+
+  defp choice_button_class(idx, wrong_idx, correct_idx, _level)
+       when not is_nil(wrong_idx) and idx == correct_idx,
+       do: "bg-emerald-200 text-emerald-800 ring-4 ring-emerald-400"
+
+  defp choice_button_class(_idx, _wrong_idx, _correct_idx, level), do: choice_default_class(level)
 
   defp choice_default_class(level) when level in [1, 2],
     do: "bg-lime-100 text-lime-800 hover:bg-lime-200"

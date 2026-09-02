@@ -27,6 +27,7 @@ import topbar from "../vendor/topbar"
 import {PhaserPreload} from "./games/shared"
 import {PacmanGame} from "./games/pacman"
 import {InvadersGame} from "./games/invaders"
+import * as sfx from "./games/sfx"
 
 // Custom hooks for Lestrarvinur
 const Hooks = {}
@@ -37,6 +38,34 @@ const Hooks = {}
 Hooks.PhaserPreload = PhaserPreload
 Hooks.PacmanGame = PacmanGame
 Hooks.InvadersGame = InvadersGame
+
+// Math flashcard sounds. Rides on the same synthesized Web Audio module as
+// the Phaser minigames. iOS unlocks the audio context on the first tap of
+// any answer button (a clean tap, unlike Phaser's drags), so no dedicated
+// Start-gate is needed here.
+Hooks.MathSounds = {
+  mounted() {
+    this.unlock = () => sfx.unlock()
+    // Any tap on the game area counts as a user gesture — good enough for
+    // iOS to allow audio playback. Kept live (not once) so it can re-unlock
+    // after a milestone minigame closes its Phaser-owned context.
+    this.el.addEventListener("touchend", this.unlock, {passive: true})
+    this.el.addEventListener("click", this.unlock)
+    this.el.addEventListener("keydown", this.unlock)
+
+    this.handleEvent("math-sound", ({type}) => {
+      if (type === "correct") sfx.mathCorrect()
+      else if (type === "wrong") sfx.mathWrong()
+    })
+  },
+
+  destroyed() {
+    this.el.removeEventListener("touchend", this.unlock)
+    this.el.removeEventListener("click", this.unlock)
+    this.el.removeEventListener("keydown", this.unlock)
+    sfx.suspend()
+  }
+}
 
 // Audio player hook for playing word audio
 Hooks.AudioPlayer = {
