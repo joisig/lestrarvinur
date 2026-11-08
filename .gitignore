@@ -40,3 +40,6 @@ __pycache__
 # IDE
 .vscode/
 .idea/
+
+# This file can expose secrets if checked in
+.claude/settings.local.json
